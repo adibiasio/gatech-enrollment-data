@@ -47,7 +47,7 @@ python app.py [-t <num_terms>] [-s <subject>] [-l <lower_bound>] [-u <upper_boun
 | `-p <string>` | Specifies the file path for saving the CSV.       | `""` (current directory)   |
 
 
-## Sample Run
+### Sample Run
 ```
 (.venv) root@andrew:~# python3 app.py -t 6 -s CS -u 4698
 2025-01-21 01:12:05,901 INFO worker.py:1821 -- Started a local Ray instance.
