@@ -28,7 +28,7 @@ def parse_term(term):
     return f"{semester} {year}"
 
 
-def fetch_nterms(n) -> list[str]:
+def fetch_nterms(n, include_summer=True) -> list[str]:
     """
     Gets the term names for the n most recent terms.
     """
@@ -46,8 +46,10 @@ def fetch_nterms(n) -> list[str]:
         for term in reversed(sorted(terms)):
             if len(nterms) >= n:
                 break
+            if "Summer" in parse_term(term):
+                continue
             nterms.append(term)
-        
+
         return nterms
 
     except Exception as error:
@@ -165,8 +167,8 @@ def process_course(term, course):
     return sections
 
 
-def compile_csv(nterms, subject, lower, upper, path=""):
-    terms = fetch_nterms(nterms)
+def compile_csv(nterms, subject, lower, upper, include_summer, path=""):
+    terms = fetch_nterms(nterms, include_summer)
 
     data = []
     for term in terms:
@@ -194,6 +196,7 @@ def parse_args(args):
     filepath = ""
     lower = 0
     upper = math.inf
+    include_summer = True
 
     i = 1
     while i < len(args):
@@ -210,6 +213,9 @@ def parse_args(args):
         elif args[i] == "-p" and i + 1 < len(args):
             filepath = args[i + 1]
             i += 2
+        elif args[i] == "-m":
+            include_summer = False
+            i += 1
         elif args[i] == "-l" and i + 1 < len(args):
             try:
                 lower = int(args[i + 1])
@@ -228,14 +234,14 @@ def parse_args(args):
             print(f"Unknown or incomplete argument: {args[i]}")
             sys.exit(1)
 
-    return nterms, subject, filepath, lower, upper
+    return nterms, subject, filepath, lower, upper, include_summer
 
 
 if __name__ == '__main__':
     if len(sys.argv) < 1:
-        print("Usage: python app.py [-t <num_terms>] [-s <subject>] [-l <lower_bound>] [-u <upper_bound>] [-p <filepath>]")
+        print("Usage: python app.py [-t <num_terms>] [-s <subject>] [-l <lower_bound>] [-u <upper_bound>] [-p <filepath>] [-m]")
         sys.exit(1)
 
-    nterms, subject, filepath, lower, upper = parse_args(sys.argv)
-    compile_csv(nterms=nterms, subject=subject, lower=lower, upper=upper, path=filepath)
+    nterms, subject, filepath, lower, upper, include_summer = parse_args(sys.argv)
+    compile_csv(nterms=nterms, subject=subject, lower=lower, upper=upper, include_summer=include_summer, path=filepath)
 

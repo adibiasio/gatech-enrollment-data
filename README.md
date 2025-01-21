@@ -45,6 +45,7 @@ python app.py [-t <num_terms>] [-s <subject>] [-l <lower_bound>] [-u <upper_boun
 | `-l <int>`    | Specifies the lower bound for the course number.  | `0`                        |
 | `-u <int>`    | Specifies the upper bound for the course number.  | `inf`                      |
 | `-p <string>` | Specifies the file path for saving the CSV.       | `""` (current directory)   |
+| `-m`          | If included, skips all summer terms.              | summer terms included      |
 
 
 ### Sample Run
