@@ -33,7 +33,7 @@ python3 app.py
 Run the program from the command line using the following syntax:
 
 ```bash
-python app.py [-t <num_terms>] [-s <subject>] [-l <lower_bound>] [-u <upper_bound>] [-p <filepath>]
+python app.py [-t <num_terms>] [-s <subject>] [-l <lower_bound>] [-u <upper_bound>] [-p <filepath>] [-m]
 ```
 
 ### Flags
