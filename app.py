@@ -181,7 +181,7 @@ def compile_csv(nterms, subject, lower, upper, path=""):
                     data.extend(list(chain.from_iterable(ray.get(done))))
                     pbar.update(1)
 
-    df = pd.DataFrame([d for d in data if d is not None]).sort_values(by="Course")
+    df = pd.DataFrame([d for d in data if d is not None]).sort_values(by=["Term", "Course"])
     path = os.path.join(path, f"{subject if subject != None else 'ALL'}_enrollment_data.csv")
     df.to_csv(path, index=False)
     print(f"Enrollment data saved to {path}!")
