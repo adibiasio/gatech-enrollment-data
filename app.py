@@ -1,3 +1,4 @@
+import math
 import requests
 import re, os, sys, ray
 
@@ -53,7 +54,7 @@ def fetch_nterms(n) -> list[str]:
         print("Error fetching the data:", error)
 
 
-def fetch_course_names(term, subject) -> list[str]:
+def fetch_course_names(term, subject, lower=0, upper=math.inf) -> list[str]:
     """
     Gets all courses of the specified subject offered during the given term.
     """
@@ -65,7 +66,18 @@ def fetch_course_names(term, subject) -> list[str]:
             raise Exception(f"HTTP error! Status: {response.status_code}")
 
         data = response.json()
-        return [c for c in data["courses"].keys() if c.startswith(f"{subject} ")]
+
+        courses = []
+        for course in data["courses"].keys():
+            match = re.match(r"([A-Za-z]+)\s(\d+)(\D*)", course)
+            sub, num, _ = match.groups()
+            num = int(num)
+            valid_subject = subject == None or sub == subject
+            valid_number = lower <= num <= upper
+            if valid_subject and valid_number:
+                courses.append(course)
+
+        return courses
 
     except Exception as error:
         print("Error fetching the data:", error)
@@ -135,7 +147,7 @@ def fetch_enrollment_from_crn(term, crn) -> dict[str, int]:
 
 
 @ray.remote
-def process_course(term, course, subject):
+def process_course(term, course):
     crns = fetch_section_crns(term=term, course_name=course)
 
     sections = []
@@ -143,7 +155,7 @@ def process_course(term, course, subject):
         enrollment = fetch_enrollment_from_crn(term=term, crn=crn)
         sections.append({
             "Term": parse_term(term),
-            "Subject": subject,
+            "Subject": course.split(" ")[0],
             "Course": course,
             "Section": section,
             "CRN": crn,
@@ -153,32 +165,35 @@ def process_course(term, course, subject):
     return sections
 
 
-def compile_csv(nterms, subject, path=""):
+def compile_csv(nterms, subject, lower, upper, path=""):
     terms = fetch_nterms(nterms)
 
     data = []
     for term in terms:
         print(f"Processing {parse_term(term)} data...")
-        courses = fetch_course_names(term=term, subject=subject)[:2]
-        futures = [process_course.remote(term, course, subject) for course in courses]
+        courses = fetch_course_names(term=term, subject=subject, lower=lower, upper=upper)
+        futures = [process_course.remote(term, course) for course in courses]
 
         with tqdm(total=len(futures)) as pbar:
             while futures:
-                done, futures = ray.wait(futures, num_returns=1, timeout=1)
+                done, futures = ray.wait(futures, num_returns=1, timeout=None)
                 for _ in done:
+                    data.extend(list(chain.from_iterable(ray.get(done))))
                     pbar.update(1)
 
-        data.extend(list(chain.from_iterable(ray.get(done))))
-
-    df = pd.DataFrame([d for d in data if d is not None])
-    df.to_csv(os.path.join(path, f"{subject}_enrollment_data.csv"), index=False)
+    df = pd.DataFrame([d for d in data if d is not None]).sort_values(by="Course")
+    path = os.path.join(path, f"{subject if subject != None else 'ALL'}_enrollment_data.csv")
+    df.to_csv(path, index=False)
+    print(f"Enrollment data saved to {path}!")
 
 
 def parse_args(args):
     # default args
     nterms = 4
-    subject = "CS"
+    subject = None
     filepath = ""
+    lower = 0
+    upper = math.inf
 
     i = 1
     while i < len(args):
@@ -195,18 +210,32 @@ def parse_args(args):
         elif args[i] == "-p" and i + 1 < len(args):
             filepath = args[i + 1]
             i += 2
+        elif args[i] == "-l" and i + 1 < len(args):
+            try:
+                lower = int(args[i + 1])
+                i += 2
+            except ValueError:
+                print(f"Error: {args[i + 1]} is not a valid integer.")
+                sys.exit(1)
+        elif args[i] == "-u" and i + 1 < len(args):
+            try:
+                upper = int(args[i + 1])
+                i += 2
+            except ValueError:
+                print(f"Error: {args[i + 1]} is not a valid integer.")
+                sys.exit(1)
         else:
             print(f"Unknown or incomplete argument: {args[i]}")
             sys.exit(1)
 
-    return nterms, subject, filepath
+    return nterms, subject, filepath, lower, upper
 
 
 if __name__ == '__main__':
     if len(sys.argv) < 1:
-        print("Usage: python script.py <num_terms> <subject> <filepath>")
+        print("Usage: python app.py [-t <num_terms>] [-s <subject>] [-p <filepath>]")
         sys.exit(1)
 
-    nterms, subject, filepath = parse_args(sys.argv)
-    compile_csv(nterms=nterms, subject=subject, path=filepath)
+    nterms, subject, filepath, lower, upper = parse_args(sys.argv)
+    compile_csv(nterms=nterms, subject=subject, lower=lower, upper=upper, path=filepath)
 
