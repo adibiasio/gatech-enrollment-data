@@ -46,3 +46,23 @@ python app.py [-t <num_terms>] [-s <subject>] [-l <lower_bound>] [-u <upper_boun
 | `-u <int>`    | Specifies the upper bound for the course number.  | `inf`                      |
 | `-p <string>` | Specifies the file path for saving the CSV.       | `""` (current directory)   |
 
+
+## Sample Run
+```
+(.venv) root@andrew:~# python3 app.py -t 6 -s CS -u 4698
+2025-01-21 01:12:05,901 INFO worker.py:1821 -- Started a local Ray instance.
+Processing Spring 2025 data...
+100%| ███████████████████████████████████████████████████| 73/73 [01:03<00:00,  1.15it/s]
+Processing Fall 2024 data...
+100%| ███████████████████████████████████████████████████| 72/72 [01:09<00:00,  1.04it/s]
+Processing Summer 2024 data...
+100%| ███████████████████████████████████████████████████| 39/39 [00:27<00:00,  1.44it/s]
+Processing Spring 2024 data...
+100%| ███████████████████████████████████████████████████| 69/69 [00:45<00:00,  1.53it/s]
+Processing Fall 2023 data...
+100%| ███████████████████████████████████████████████████| 70/70 [00:29<00:00,  2.38it/s]
+Processing Summer 2023 data...
+100%| ███████████████████████████████████████████████████| 37/37 [00:19<00:00,  1.92it/s]
+Enrollment data saved to CS_enrollment_data.csv!
+(.venv) root@andrew:~#
+```
