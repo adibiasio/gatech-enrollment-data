@@ -1,247 +1,162 @@
-import math
-import requests
-import re, os, sys, ray
+import platform
+import subprocess, threading
+import os, sys
 
-import pandas as pd
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import webbrowser
 
-from itertools import chain
-from tqdm import tqdm
+class App:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Georgia Tech Enrollment Data")
+        self.root.geometry("600x400")
+        self.github = "https://github.com/adibiasio/gatech-enrollment-data"
 
+        # Default values
+        self.num_terms = 4
+        self.subject = ''
+        self.lower_bound = 0
+        self.upper_bound = float('inf')
+        self.filepath = ''
+        self.skip_summer = False
 
-crawler_url = "https://gt-scheduler.github.io/crawler-v2/"
-seat_url = "https://gt-scheduler.azurewebsites.net/proxy/class_section?"
-
-ray.init(ignore_reinit_error=True)
-
-
-def parse_term(term):
-    # Term Format: YYYYMM (i.e. 202502)
-    year, month = term[:4], int(term[4:])
-    
-    if month < 5:
-        semester = "Spring"
-    elif month < 8:
-        semester = "Summer"
-    else:
-        semester = "Fall"
-
-    return f"{semester} {year}"
+        self.create_widgets()
 
 
-def fetch_nterms(n, include_summer=True) -> list[str]:
-    """
-    Gets the term names for the n most recent terms.
-    """
-    url = f"{crawler_url}"
+    def create_widgets(self):
+        paragraph = (
+            "This application allows you to customize the settings for the enrollment data script.\n"
+            "All options are optional and if unspecified, all subjects / course numbers will be\n"
+            "fetched. Optionally, you can skip summer terms.\n"
+            "\n"
+            "You must choose a file path to save the output files."
+        )
 
-    try:
-        response = requests.get(url)
-        if response.status_code != 200:
-            raise Exception(f"HTTP error! Status: {response.status_code}")
+        # Preamble
+        text_label = tk.Label(self.root, text=paragraph, justify="center", padx=10)
+        text_label.grid(row=0, column=0, columnspan=3, pady=10)
 
-        data = response.json()
-        terms = [t["term"] for t in data["terms"]]
+        # Grid layout for the rest of the inputs
+        self.root.grid_columnconfigure(0, weight=1)
+        self.root.grid_columnconfigure(1, weight=3)
         
-        nterms = []
-        for term in reversed(sorted(terms)):
-            if len(nterms) >= n:
-                break
-            if "Summer" in parse_term(term):
-                continue
-            nterms.append(term)
+        # Number of terms
+        tk.Label(self.root, text="Number of Terms (default 4):").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        self.num_terms_entry = tk.Entry(self.root)
+        self.num_terms_entry.insert(0, str(self.num_terms))
+        self.num_terms_entry.grid(row=2, column=1, padx=10, pady=5, sticky="w")
 
-        return nterms
+        # Subject
+        tk.Label(self.root, text="Subject:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
+        self.subject_entry = tk.Entry(self.root)
+        self.subject_entry.grid(row=3, column=1, padx=10, pady=5, sticky="w")
 
-    except Exception as error:
-        print("Error fetching the data:", error)
+        # Lower bound
+        tk.Label(self.root, text="Course No. Lower Bound:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
+        self.lower_bound_entry = tk.Entry(self.root)
+        self.lower_bound_entry.grid(row=4, column=1, padx=10, pady=5, sticky="w")
 
+        # Upper bound
+        tk.Label(self.root, text="Course No. Upper Bound:").grid(row=5, column=0, padx=10, pady=5, sticky="e")
+        self.upper_bound_entry = tk.Entry(self.root)
+        self.upper_bound_entry.grid(row=5, column=1, padx=10, pady=5, sticky="w")
 
-def fetch_course_names(term, subject, lower=0, upper=math.inf) -> list[str]:
-    """
-    Gets all courses of the specified subject offered during the given term.
-    """
-    url = f"{crawler_url}{term}.json"
+        # Filepath and Browse button
+        tk.Label(self.root, text="Filepath (required):").grid(row=6, column=0, padx=10, pady=5, sticky="e")
+        self.filepath_entry = tk.Entry(self.root)
+        self.filepath_entry.grid(row=6, column=1, padx=10, pady=5, sticky="w")
+        self.browse_button = tk.Button(self.root, text="Browse", command=self.browse_folder)
+        self.browse_button.grid(row=6, column=2, padx=10, pady=5)
 
-    try:
-        response = requests.get(url)
-        if response.status_code != 200:
-            raise Exception(f"HTTP error! Status: {response.status_code}")
+        # Skip summer terms
+        self.skip_summer_var = tk.IntVar()
+        self.skip_summer_checkbox = tk.Checkbutton(self.root, text="Skip Summer Terms", variable=self.skip_summer_var)
+        self.skip_summer_checkbox.grid(row=7, column=0, columnspan=3, pady=5)
 
-        data = response.json()
-
-        courses = []
-        for course in data["courses"].keys():
-            match = re.match(r"([A-Za-z]+)\s(\d+)(\D*)", course)
-            sub, num, _ = match.groups()
-            num = int(num)
-            valid_subject = subject == None or sub == subject
-            valid_number = lower <= num <= upper
-            if valid_subject and valid_number:
-                courses.append(course)
-
-        return courses
-
-    except Exception as error:
-        print("Error fetching the data:", error)
+        # Submit button
+        self.submit_button = tk.Button(self.root, text="Run Script", command=self.run_script)
+        self.submit_button.grid(row=8, column=0, columnspan=3, pady=10)
 
 
-def fetch_section_crns(term, course_name) -> dict[str, str]:
-    """
-    Gets all CRNs of the specified course offered during the given term.
-    
-    Returns:
-    Dict: section[str]: crn[str]
-    """
-    url = f"{crawler_url}{term}.json"
-
-    try:
-        response = requests.get(url)
-        if response.status_code != 200:
-            raise Exception(f"HTTP error! Status: {response.status_code}")
-
-        data = response.json()
-
-        crn_list = {}
-        course = data["courses"].get(course_name, [None, {}])[1]
-
-        for section, details in course.items():
-            if details[2] != 0:
-                crn_list[section] = details[0]
-
-        return crn_list
-
-    except Exception as error:
-        print("Error fetching the data:", error)
+    def browse_folder(self):
+        # Open a file dialog to choose a file
+        filepath = filedialog.askdirectory(title="Select a Folder")
+        if filepath:
+            self.filepath_entry.delete(0, tk.END)
+            self.filepath_entry.insert(0, filepath)
 
 
-def fetch_enrollment_from_crn(term, crn) -> dict[str, int]:
-    """
-    Gets enrollment data of the specified crn offered during the given term.
-    """
-    url = f"{seat_url}term={term}&crn={crn}"
+    def fetch_inputs(self):
+        try:
+            num_terms_str = self.num_terms_entry.get()
+            self.num_terms = int(num_terms_str) if num_terms_str else self.num_terms
+            if self.num_terms < 0:
+                raise ValueError()
+        except ValueError:
+            messagebox.showerror("Input Error", "Number of Terms must be a positive integer.")
+            return False
 
-    try:
-        response = requests.get(url)
-        if response.status_code != 200:
-            raise Exception(f"HTTP error! Status: {response.status_code}")
+        self.subject = self.subject_entry.get()
+        try:
+            low_str = self.lower_bound_entry.get()
+            self.lower_bound = int(low_str) if low_str else self.lower_bound
+        except ValueError:
+            messagebox.showerror("Input Error", "Lower Bound must be an integer.")
+            return False
 
-        data = response.text
+        try:
+            up_str = self.upper_bound_entry.get()
+            self.upper_bound = int(up_str) if up_str and up_str != 'inf' else float('inf')
+        except ValueError:
+            messagebox.showerror("Input Error", "Upper Bound must be an integer or 'inf'.")
+            return False
 
-        enrollment_info = {
-            "Enrollment Actual": None,
-            "Enrollment Maximum": None,
-            "Enrollment Seats Available": None,
-            "Waitlist Capacity": None,
-            "Waitlist Actual": None,
-            "Waitlist Seats Available": None
-        }
+        self.skip_summer = self.skip_summer_var.get()
+        self.filepath = self.filepath_entry.get()
+        if not os.path.isdir(self.filepath):        
+            messagebox.showerror("Input Error", "A valid path is required.")
+            return False
 
-        for key in enrollment_info.keys():
-            pattern = rf"{key}:</span> <span\s+dir=\"ltr\">(\d+)</span>"
-            match = re.search(pattern, data)
-            if match:
-                enrollment_info[key] = int(match.group(1))
+        return True
 
-        return enrollment_info
+    def compile_command(self):
+        python_executable = sys.executable
+        cmd = f'{python_executable} script.py'
+        cmd += f" -t {self.num_terms}"
+        cmd += f" -s {self.subject.upper()}" if self.subject else ""
+        cmd += f" -l {self.lower_bound}" if self.lower_bound > 0 else ""
+        cmd += f" -u {self.upper_bound}" if self.upper_bound > 0 and self.upper_bound != float("inf") else ""
+        cmd += " -m" if self.skip_summer == 1 else ""
+        cmd += f" -p {self.filepath}" if self.filepath else ""
+        return cmd
 
-    except Exception as error:
-        print("Error fetching the data:", error)
+    def run_script(self):
+        self.submit_button.config(state=tk.DISABLED)
+        if not self.fetch_inputs():
+            return
 
+        command = self.compile_command()
+        threading.Thread(target=self.exec, args=(command,)).start()
 
-@ray.remote
-def process_course(term, course):
-    crns = fetch_section_crns(term=term, course_name=course)
-
-    sections = []
-    for section, crn in crns.items():    
-        enrollment = fetch_enrollment_from_crn(term=term, crn=crn)
-        sections.append({
-            "Term": parse_term(term),
-            "Subject": course.split(" ")[0],
-            "Course": course,
-            "Section": section,
-            "CRN": crn,
-            **enrollment
-        })
-
-    return sections
-
-
-def compile_csv(nterms, subject, lower, upper, include_summer, path=""):
-    terms = fetch_nterms(nterms, include_summer)
-
-    data = []
-    for term in terms:
-        print(f"Processing {parse_term(term)} data...")
-        courses = fetch_course_names(term=term, subject=subject, lower=lower, upper=upper)
-        futures = [process_course.remote(term, course) for course in courses]
-
-        with tqdm(total=len(futures)) as pbar:
-            while futures:
-                done, futures = ray.wait(futures, num_returns=1, timeout=None)
-                for _ in done:
-                    data.extend(list(chain.from_iterable(ray.get(done))))
-                    pbar.update(1)
-
-    df = pd.DataFrame([d for d in data if d is not None]).sort_values(by=["Term", "Course"])
-    path = os.path.join(path, f"{subject if subject != None else 'ALL'}_enrollment_data.csv")
-    df.to_csv(path, index=False)
-    print(f"Enrollment data saved to {path}!")
+    def exec(self, command):
+        try:
+            system = platform.system()
+            if system == "Windows":
+                subprocess.Popen(['cmd.exe', '/K', command], creationflags=subprocess.CREATE_NEW_CONSOLE)
+                messagebox.showinfo("Info", "Download started. Progress will be shown in an external Terminal.")
+            elif system == "Darwin":
+                subprocess.Popen(['osascript', '-e', f'tell application "Terminal" to do script "{command}"'])
+                messagebox.showinfo("Info", "Download started. Progress will be shown in an external Terminal.")
+            else:
+                messagebox.showinfo("Input Error", "Unsupported OS")
+        except subprocess.CalledProcessError as e:
+            print(f"Error while executing the script: {e}")
+        finally:
+            self.submit_button.config(state=tk.NORMAL)
 
 
-def parse_args(args):
-    # default args
-    nterms = 4
-    subject = None
-    filepath = ""
-    lower = 0
-    upper = math.inf
-    include_summer = True
-
-    i = 1
-    while i < len(args):
-        if args[i] == "-t" and i + 1 < len(args):
-            try:
-                nterms = int(args[i + 1])
-                i += 2
-            except ValueError:
-                print(f"Error: {args[i + 1]} is not a valid integer.")
-                sys.exit(1)
-        elif args[i] == "-s" and i + 1 < len(args):
-            subject = args[i + 1]
-            i += 2
-        elif args[i] == "-p" and i + 1 < len(args):
-            filepath = args[i + 1]
-            i += 2
-        elif args[i] == "-m":
-            include_summer = False
-            i += 1
-        elif args[i] == "-l" and i + 1 < len(args):
-            try:
-                lower = int(args[i + 1])
-                i += 2
-            except ValueError:
-                print(f"Error: {args[i + 1]} is not a valid integer.")
-                sys.exit(1)
-        elif args[i] == "-u" and i + 1 < len(args):
-            try:
-                upper = int(args[i + 1])
-                i += 2
-            except ValueError:
-                print(f"Error: {args[i + 1]} is not a valid integer.")
-                sys.exit(1)
-        else:
-            print(f"Unknown or incomplete argument: {args[i]}")
-            sys.exit(1)
-
-    return nterms, subject, filepath, lower, upper, include_summer
-
-
-if __name__ == '__main__':
-    if len(sys.argv) < 1:
-        print("Usage: python app.py [-t <num_terms>] [-s <subject>] [-l <lower_bound>] [-u <upper_bound>] [-p <filepath>] [-m]")
-        sys.exit(1)
-
-    nterms, subject, filepath, lower, upper, include_summer = parse_args(sys.argv)
-    compile_csv(nterms=nterms, subject=subject, lower=lower, upper=upper, include_summer=include_summer, path=filepath)
-
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = App(root)
+    root.mainloop()
