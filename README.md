@@ -4,7 +4,7 @@ This project is dedicated towards retrieving historical data on course enrollmen
 
 This program processes input based on the specified flags and generates an output CSV file with the corresponding enrollment data. It allows users to customize the number of terms, filter by a subject, and provide a file path for saving the output.
 
-## Installation
+## Script Installation
 
 Step 1: Clone this repository and navigate to its root directory
 ```
@@ -25,10 +25,10 @@ pip install -r requirements.txt
 
 Step 4: Run the script!
 ```
-python3 app.py
+python3 src/script.py
 ```
 
-## Usage
+## Script Usage
 
 Run the program from the command line using the following syntax:
 
