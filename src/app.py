@@ -137,7 +137,7 @@ class App:
             return
 
         command = self.compile_command()
-        threading.Thread(target=self.exec, args=(command,)).start()
+        self.exec(command)
 
     def exec(self, command):
         try:
