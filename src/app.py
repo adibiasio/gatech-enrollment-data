@@ -132,7 +132,6 @@ class App:
         return cmd
 
     def run_script(self):
-        self.submit_button.config(state=tk.DISABLED)
         if not self.fetch_inputs():
             return
 
@@ -152,8 +151,6 @@ class App:
                 messagebox.showinfo("Input Error", "Unsupported OS")
         except subprocess.CalledProcessError as e:
             print(f"Error while executing the script: {e}")
-        finally:
-            self.submit_button.config(state=tk.NORMAL)
 
 
 if __name__ == "__main__":
