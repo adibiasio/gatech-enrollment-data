@@ -1,10 +1,14 @@
-import platform
-import subprocess, threading
+# import platform
+# import subprocess
 import os, sys
+import traceback
 
 import tkinter as tk
 from tkinter import filedialog, messagebox
-import webbrowser
+
+from client import compile_csv
+from script import parse_args
+
 
 class App:
     def __init__(self, root):
@@ -78,6 +82,10 @@ class App:
         self.submit_button = tk.Button(self.root, text="Run Script", command=self.run_script)
         self.submit_button.grid(row=8, column=0, columnspan=3, pady=10)
 
+        # Status
+        self.status_label = tk.Label(self.root, text="", justify="center", padx=10)
+        self.status_label.grid(row=9, column=0, columnspan=3, pady=10)
+
 
     def browse_folder(self):
         # Open a file dialog to choose a file
@@ -120,6 +128,7 @@ class App:
 
         return True
 
+
     def compile_command(self):
         python_executable = sys.executable
         cmd = f'{python_executable} script.py'
@@ -131,26 +140,55 @@ class App:
         cmd += f" -p {self.filepath}" if self.filepath else ""
         return cmd
 
+
     def run_script(self):
+        self.submit_button.config(state=tk.DISABLED)
+        self.root.update()
+        self.status_label.config(text="Running...")
+        self.root.update()
+
         if not self.fetch_inputs():
             return
 
         command = self.compile_command()
-        self.exec(command)
+        nterms, subject, filepath, lower, upper, include_summer = parse_args(command.split()[1:])
 
-    def exec(self, command):
         try:
-            system = platform.system()
-            if system == "Windows":
-                subprocess.Popen(['cmd.exe', '/K', command], creationflags=subprocess.CREATE_NEW_CONSOLE)
-                messagebox.showinfo("Info", "Download started. Progress will be shown in an external Terminal.")
-            elif system == "Darwin":
-                subprocess.Popen(['osascript', '-e', f'tell application "Terminal" to do script "{command}"'])
-                messagebox.showinfo("Info", "Download started. Progress will be shown in an external Terminal.")
-            else:
-                messagebox.showinfo("Input Error", "Unsupported OS")
-        except subprocess.CalledProcessError as e:
-            print(f"Error while executing the script: {e}")
+            compile_csv(
+                nterms=nterms, 
+                subject=subject, 
+                lower=lower, 
+                upper=upper, 
+                include_summer=include_summer, 
+                path=filepath, 
+                use_ray=False
+            )
+        except Exception as e:
+            self.status_label.config(text="Oops! An Error Occurred.")
+            # NOTE: for debugging purposes
+            # with open("enrollment.log", "w") as file:
+            #     file.write(traceback.format_exc())
+            #     return
+        finally:
+            self.submit_button.config(state=tk.NORMAL)
+
+        self.status_label.config(text="Data Saved to Path!")
+
+
+    # def exec(self, command):
+    #     # issues with running subprocess with ray and pyinstaller
+    #     try:
+    #         system = platform.system()
+    #         if system == "Windows":
+    #             subprocess.Popen(['cmd.exe', '/K', command], creationflags=subprocess.CREATE_NEW_CONSOLE)
+    #             messagebox.showinfo("Info", "Download started. Progress will be shown in an external Terminal.")
+    #         elif system == "Darwin":
+    #             subprocess.Popen(['osascript', '-e', f'tell application "Terminal" to do script "{command}"'])
+    #             messagebox.showinfo("Info", "Download started. Progress will be shown in an external Terminal.")
+    #         else:
+    #             messagebox.showinfo("Input Error", "Unsupported OS")
+    #     except subprocess.CalledProcessError as e:
+    #         print(f"Error while executing the script: {e}")
 
 
 if __name__ == "__main__":

@@ -57,5 +57,5 @@ if __name__ == '__main__':
         sys.exit(1)
 
     nterms, subject, filepath, lower, upper, include_summer = parse_args(sys.argv)
-    compile_csv(nterms=nterms, subject=subject, lower=lower, upper=upper, include_summer=include_summer, path=filepath)
+    compile_csv(nterms=nterms, subject=subject, lower=lower, upper=upper, include_summer=include_summer, path=filepath, use_ray=True)
 

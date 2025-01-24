@@ -1,6 +1,7 @@
+import ray
 import math
+import re, os
 import requests
-import re, os, ray
 
 import pandas as pd
 
@@ -10,9 +11,6 @@ from tqdm import tqdm
 
 crawler_url = "https://gt-scheduler.github.io/crawler-v2/"
 seat_url = "https://gt-scheduler.azurewebsites.net/proxy/class_section?"
-
-if not ray.is_initialized():
-    ray.init(ignore_reinit_error=True)
 
 
 def parse_term(term):
@@ -149,7 +147,6 @@ def fetch_enrollment_from_crn(term, crn) -> dict[str, int]:
         print("Error fetching the data:", error)
 
 
-@ray.remote
 def process_course(term, course):
     crns = fetch_section_crns(term=term, course_name=course)
 
@@ -168,21 +165,34 @@ def process_course(term, course):
     return sections
 
 
-def compile_csv(nterms, subject, lower, upper, include_summer, path=""):
+@ray.remote
+def process_course_remote(term, course):
+    return process_course(term=term, course=course)
+
+
+def compile_csv(nterms, subject, lower, upper, include_summer, path="", use_ray=False):
     terms = fetch_nterms(nterms, include_summer)
 
     data = []
     for term in terms:
         print(f"Processing {parse_term(term)} data...")
         courses = fetch_course_names(term=term, subject=subject, lower=lower, upper=upper)
-        futures = [process_course.remote(term, course) for course in courses]
 
-        with tqdm(total=len(futures)) as pbar:
-            while futures:
-                done, futures = ray.wait(futures, num_returns=1, timeout=None)
-                for _ in done:
-                    data.extend(list(chain.from_iterable(ray.get(done))))
-                    pbar.update(1)
+        if use_ray:
+            pass
+            if not ray.is_initialized():
+                ray.init(ignore_reinit_error=True)
+
+            futures = [process_course_remote.remote(term, course) for course in courses]
+            with tqdm(total=len(futures)) as pbar:
+                while futures:
+                    done, futures = ray.wait(futures, num_returns=1, timeout=None)
+                    for _ in done:
+                        data.extend(list(chain.from_iterable(ray.get(done))))
+                        pbar.update(1)
+        else:
+            for course in courses:
+                data.extend(process_course(term, course))
 
     df = pd.DataFrame([d for d in data if d is not None]).sort_values(by=["Term", "Course"])
     path = os.path.join(path, f"{subject if subject != None else 'ALL'}_enrollment_data.csv")
