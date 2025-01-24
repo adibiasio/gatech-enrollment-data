@@ -33,7 +33,7 @@ python3 src/script.py
 Run the program from the command line using the following syntax:
 
 ```bash
-python app.py [-t <num_terms>] [-s <subject>] [-l <lower_bound>] [-u <upper_bound>] [-p <filepath>] [-m]
+python script.py [-t <num_terms>] [-s <subject>] [-l <lower_bound>] [-u <upper_bound>] [-p <filepath>] [-m]
 ```
 
 ### Flags
@@ -50,7 +50,7 @@ python app.py [-t <num_terms>] [-s <subject>] [-l <lower_bound>] [-u <upper_boun
 
 ### Sample Run
 ```
-(.venv) root@andrew:~# python3 app.py -t 6 -s CS -u 4698
+(.venv) root@andrew:~# python3 script.py -t 6 -s CS -u 4800
 2025-01-21 01:12:05,901 INFO worker.py:1821 -- Started a local Ray instance.
 Processing Spring 2025 data...
 100%| ███████████████████████████████████████████████████| 73/73 [01:03<00:00,  1.15it/s]
@@ -67,3 +67,16 @@ Processing Summer 2023 data...
 Enrollment data saved to CS_enrollment_data.csv!
 (.venv) root@andrew:~#
 ```
+
+## Tkinter App
+You can also run the program via a python tkinter application, with UI inputs instead of command-line arguments.
+Effort was made to package this into a standalone desktop app, but complications with .exe files and anti-virus
+software led to the decision to leave the app as is.
+
+```
+python app.py
+```
+
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/0a906035-a103-4f51-8ba9-5256f2014256" alt="Centered Image">
+</div>
