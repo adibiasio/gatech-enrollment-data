@@ -5,7 +5,7 @@ This project is dedicated towards retrieving historical data on course enrollmen
 This program processes input based on the specified flags and generates an output CSV file with the corresponding enrollment data. It allows users to customize the number of terms, filter by a subject, and provide a file path for saving the output.
 
 ## Installation
-Step 0: Ensure you have python installed on your system. This project uses version 3.11. If you do not have python installed, you can install it [here](https://www.python.org/downloads/release/python-3110/) for your appropriate operating system.
+Step 0: Ensure you have python installed on your system. This project uses version 3.11. If you do not have python installed, you can install it [here](https://www.python.org/downloads/release/python-3110/) for your appropriate operating system. Make sure to select ADD TO PATH during the installation process.
 
 Step 1: Within a terminal, clone this repository and navigate to its root directory
 ```
