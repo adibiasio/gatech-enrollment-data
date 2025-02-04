@@ -45,7 +45,7 @@ def fetch_nterms(n, include_summer=True) -> list[str]:
         for term in reversed(sorted(terms)):
             if len(nterms) >= n:
                 break
-            if "Summer" in parse_term(term):
+            if not include_summer and "Summer" in parse_term(term):
                 continue
             nterms.append(term)
 
