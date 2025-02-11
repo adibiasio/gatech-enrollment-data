@@ -27,32 +27,40 @@ def parse_term(term):
     return f"{semester} {year}"
 
 
-def fetch_nterms(n, include_summer=True) -> list[str]:
-    """
-    Gets the term names for the n most recent terms.
-    """
-    url = f"{crawler_url}"
-
+def fetch(url, as_text=False):
     try:
         response = requests.get(url)
         if response.status_code != 200:
             raise Exception(f"HTTP error! Status: {response.status_code}")
 
-        data = response.json()
-        terms = [t["term"] for t in data["terms"]]
-        
-        nterms = []
-        for term in reversed(sorted(terms)):
-            if len(nterms) >= n:
-                break
-            if not include_summer and "Summer" in parse_term(term):
-                continue
-            nterms.append(term)
+        if as_text:
+            return response.text
 
-        return nterms
+        return response.json()
 
     except Exception as error:
         print("Error fetching the data:", error)
+
+
+def fetch_nterms(n, include_summer=True) -> list[str]:
+    """
+    Gets the term names for the n most recent terms.
+    """
+    url = f"{crawler_url}"
+    data = fetch(url=url)
+    if not data:
+        return
+
+    nterms = []
+    terms = [t["term"] for t in data["terms"]]
+    for term in reversed(sorted(terms)):
+        if len(nterms) >= n:
+            break
+        if not include_summer and "Summer" in parse_term(term):
+            continue
+        nterms.append(term)
+
+    return nterms
 
 
 def fetch_course_names(term, subject, lower=0, upper=math.inf) -> list[str]:
@@ -60,28 +68,21 @@ def fetch_course_names(term, subject, lower=0, upper=math.inf) -> list[str]:
     Gets all courses of the specified subject offered during the given term.
     """
     url = f"{crawler_url}{term}.json"
+    data = fetch(url=url)
+    if not data:
+        return
 
-    try:
-        response = requests.get(url)
-        if response.status_code != 200:
-            raise Exception(f"HTTP error! Status: {response.status_code}")
+    courses = []
+    for course in data["courses"].keys():
+        match = re.match(r"([A-Za-z]+)\s(\d+)(\D*)", course)
+        sub, num, _ = match.groups()
+        num = int(num)
+        valid_subject = subject == None or sub == subject
+        valid_number = lower <= num <= upper
+        if valid_subject and valid_number:
+            courses.append(course)
 
-        data = response.json()
-
-        courses = []
-        for course in data["courses"].keys():
-            match = re.match(r"([A-Za-z]+)\s(\d+)(\D*)", course)
-            sub, num, _ = match.groups()
-            num = int(num)
-            valid_subject = subject == None or sub == subject
-            valid_number = lower <= num <= upper
-            if valid_subject and valid_number:
-                courses.append(course)
-
-        return courses
-
-    except Exception as error:
-        print("Error fetching the data:", error)
+    return courses
 
 
 def fetch_section_crns(term, course_name) -> dict[str, str]:
@@ -92,25 +93,18 @@ def fetch_section_crns(term, course_name) -> dict[str, str]:
     Dict: section[str]: crn[str]
     """
     url = f"{crawler_url}{term}.json"
+    data = fetch(url=url)
+    if not data:
+        return
 
-    try:
-        response = requests.get(url)
-        if response.status_code != 200:
-            raise Exception(f"HTTP error! Status: {response.status_code}")
+    crn_list = {}
+    course = data["courses"].get(course_name, [None, {}])[1]
 
-        data = response.json()
+    for section, details in course.items():
+        if details[2] != 0:
+            crn_list[section] = details[0]
 
-        crn_list = {}
-        course = data["courses"].get(course_name, [None, {}])[1]
-
-        for section, details in course.items():
-            if details[2] != 0:
-                crn_list[section] = details[0]
-
-        return crn_list
-
-    except Exception as error:
-        print("Error fetching the data:", error)
+    return crn_list
 
 
 def fetch_enrollment_from_crn(term, crn) -> dict[str, int]:
@@ -118,33 +112,26 @@ def fetch_enrollment_from_crn(term, crn) -> dict[str, int]:
     Gets enrollment data of the specified crn offered during the given term.
     """
     url = f"{seat_url}term={term}&crn={crn}"
+    data = fetch(url=url, as_text=True)
+    if not data:
+        return
 
-    try:
-        response = requests.get(url)
-        if response.status_code != 200:
-            raise Exception(f"HTTP error! Status: {response.status_code}")
+    enrollment_info = {
+        "Enrollment Actual": None,
+        "Enrollment Maximum": None,
+        "Enrollment Seats Available": None,
+        "Waitlist Capacity": None,
+        "Waitlist Actual": None,
+        "Waitlist Seats Available": None
+    }
 
-        data = response.text
+    for key in enrollment_info.keys():
+        pattern = rf"{key}:</span> <span\s+dir=\"ltr\">(\d+)</span>"
+        match = re.search(pattern, data)
+        if match:
+            enrollment_info[key] = int(match.group(1))
 
-        enrollment_info = {
-            "Enrollment Actual": None,
-            "Enrollment Maximum": None,
-            "Enrollment Seats Available": None,
-            "Waitlist Capacity": None,
-            "Waitlist Actual": None,
-            "Waitlist Seats Available": None
-        }
-
-        for key in enrollment_info.keys():
-            pattern = rf"{key}:</span> <span\s+dir=\"ltr\">(\d+)</span>"
-            match = re.search(pattern, data)
-            if match:
-                enrollment_info[key] = int(match.group(1))
-
-        return enrollment_info
-
-    except Exception as error:
-        print("Error fetching the data:", error)
+    return enrollment_info
 
 
 def process_course(term, course):
@@ -191,7 +178,7 @@ def compile_csv(nterms, subject, lower, upper, include_summer, path="", use_ray=
                         data.extend(list(chain.from_iterable(ray.get(done))))
                         pbar.update(1)
         else:
-            for course in courses:
+            for course in tqdm(courses):
                 data.extend(process_course(term, course))
 
     df = pd.DataFrame([d for d in data if d is not None]).sort_values(by=["Term", "Course"])
