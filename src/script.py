@@ -53,7 +53,7 @@ def parse_args(args):
 
 if __name__ == '__main__':
     if len(sys.argv) < 1:
-        print("Usage: python app.py [-t <num_terms>] [-s <subject>] [-l <lower_bound>] [-u <upper_bound>] [-p <filepath>] [-m]")
+        print("Usage: python script.py [-t <num_terms>] [-s <subject>] [-l <lower_bound>] [-u <upper_bound>] [-p <filepath>] [-m]")
         sys.exit(1)
 
     nterms, subject, filepath, lower, upper, include_summer = parse_args(sys.argv)
