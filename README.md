@@ -49,7 +49,7 @@ python src/app.py
 You can also run the program from the command line using the following syntax:
 
 ```bash
-python src/script.py [-t <num_terms>] [-s <subject>] [-l <lower_bound>] [-u <upper_bound>] [-p <filepath>] [-m]
+python src/script.py [-t <num_terms>] [-s <subject 1> ... <subject n>] [-l <lower_bound>] [-u <upper_bound>] [-p <filepath>] [-m] [-o]
 ```
 
 ### Flags
@@ -57,11 +57,12 @@ python src/script.py [-t <num_terms>] [-s <subject>] [-l <lower_bound>] [-u <upp
 | Flag          | Description                                       | Default Value              |
 |---------------|---------------------------------------------------|----------------------------|
 | `-t <int>`    | Specifies the number of terms to process.         | `4`                        |
-| `-s <string>` | Specifies the subject of the output.              | `None` (all returned)      |
+| `-s <string> ... <string>` | Specifies the subjects of the output.| None (all returned)      |
 | `-l <int>`    | Specifies the lower bound for the course number.  | `0`                        |
 | `-u <int>`    | Specifies the upper bound for the course number.  | `inf`                      |
 | `-p <string>` | Specifies the file path for saving the CSV.       | `""` (current directory)   |
 | `-m`          | If included, skips all summer terms.              | summer terms included      |
+| `-o`          | If included, outputs all terms to one file.       | summer terms included      |
 
 
 ### Sample Run
