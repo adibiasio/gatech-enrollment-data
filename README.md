@@ -62,7 +62,7 @@ python src/script.py [-t <num_terms>] [-s <subject 1> ... <subject n>] [-l <lowe
 | `-u <int>`    | Specifies the upper bound for the course number.  | `inf`                      |
 | `-p <string>` | Specifies the file path for saving the CSV.       | `""` (current directory)   |
 | `-m`          | If included, skips all summer terms.              | summer terms included      |
-| `-o`          | If included, outputs all terms to one file.       | summer terms included      |
+| `-o`          | If included, outputs all terms to one file.       | one file per term      |
 
 
 ### Sample Run
