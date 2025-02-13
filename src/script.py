@@ -57,12 +57,8 @@ def parse_args(args):
     return nterms, subjects, filepath, lower, upper, include_summer, one_file
 
 
-if __name__ == '__main__':
-    if len(sys.argv) < 1:
-        print("Usage: python script.py [-t <num_terms>] [-s <subject 1> ... <subject n>] [-l <lower_bound>] [-u <upper_bound>] [-p <filepath>] [-m] [-o]")
-        sys.exit(1)
-
-    nterms, subjects, filepath, lower, upper, include_summer, one_file = parse_args(sys.argv)
+def run(argv, use_ray=True):
+    nterms, subjects, filepath, lower, upper, include_summer, one_file = parse_args(argv)
     compile_csv(
         nterms=nterms,
         subjects=subjects,
@@ -71,6 +67,14 @@ if __name__ == '__main__':
         include_summer=include_summer, 
         one_file=one_file, 
         path=filepath, 
-        use_ray=True
+        use_ray=use_ray
     )
+
+
+if __name__ == '__main__':
+    if len(sys.argv) < 1:
+        print("Usage: python script.py [-t <num_terms>] [-s <subject 1> ... <subject n>] [-l <lower_bound>] [-u <upper_bound>] [-p <filepath>] [-m] [-o]")
+        sys.exit(1)
+
+    run(sys.argv)
 

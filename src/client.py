@@ -160,6 +160,8 @@ def append_room_data(df, locations):
 
 
 def formatted_df(data, locations):
+    if len(data) == 0:
+        return pd.DataFrame()
     df = pd.DataFrame([d for d in data if d is not None])
     df = append_room_data(df=df, locations=locations)
     df["Utilization"] = df["Enrollment Actual"] / df["Capacity"]
@@ -215,8 +217,6 @@ def compile_csv(nterms, subjects, lower, upper, include_summer, one_file, path="
             for course in tqdm(courses):
                 data.extend(process_course(term, course))
 
-        # TODO: add support for seperate csv generation in one run
-        #       propogate changes in both script & app
         df = formatted_df(data=data, locations=locations)
         if not one_file:
             save_df(df, path, f"enrollment_data_{'_'.join(parse_term(term).lower().split())}.csv")

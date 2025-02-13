@@ -6,15 +6,14 @@ import traceback
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
-from client import compile_csv
-from script import parse_args
+from script import run
 
 
 class App:
     def __init__(self, root):
         self.root = root
         self.root.title("Georgia Tech Enrollment Data")
-        self.root.geometry("600x400")
+        self.root.geometry("600x450")
         self.github = "https://github.com/adibiasio/gatech-enrollment-data"
 
         # Default values
@@ -24,6 +23,7 @@ class App:
         self.upper_bound = float('inf')
         self.filepath = ''
         self.skip_summer = False
+        self.one_file = False
 
         self.create_widgets()
 
@@ -78,13 +78,18 @@ class App:
         self.skip_summer_checkbox = tk.Checkbutton(self.root, text="Skip Summer Terms", variable=self.skip_summer_var)
         self.skip_summer_checkbox.grid(row=7, column=0, columnspan=3, pady=5)
 
+        # Export to one file
+        self.one_file_var = tk.IntVar()
+        self.one_file_checkbox = tk.Checkbutton(self.root, text="Export to One File", variable=self.one_file_var)
+        self.one_file_checkbox.grid(row=8, column=0, columnspan=3, pady=5)
+
         # Submit button
         self.submit_button = tk.Button(self.root, text="Run Script", command=self.run_script)
-        self.submit_button.grid(row=8, column=0, columnspan=3, pady=10)
+        self.submit_button.grid(row=9, column=0, columnspan=3, pady=10)
 
         # Status
         self.status_label = tk.Label(self.root, text="", justify="center", padx=10)
-        self.status_label.grid(row=9, column=0, columnspan=3, pady=10)
+        self.status_label.grid(row=10, column=0, columnspan=3, pady=10)
 
 
     def browse_folder(self):
@@ -121,6 +126,7 @@ class App:
             return False
 
         self.skip_summer = self.skip_summer_var.get()
+        self.one_file = self.one_file_var.get()
         self.filepath = self.filepath_entry.get()
         if not os.path.isdir(self.filepath):        
             messagebox.showerror("Input Error", "A valid path is required.")
@@ -133,10 +139,11 @@ class App:
         python_executable = sys.executable
         cmd = f'{python_executable} script.py'
         cmd += f" -t {self.num_terms}"
-        cmd += f" -s {self.subject.upper()}" if self.subject else ""
+        cmd += f" -s {' '.join(self.subject.replace(',',' ').split())}" if self.subject else ""
         cmd += f" -l {self.lower_bound}" if self.lower_bound > 0 else ""
         cmd += f" -u {self.upper_bound}" if self.upper_bound > 0 and self.upper_bound != float("inf") else ""
         cmd += " -m" if self.skip_summer == 1 else ""
+        cmd += " -o" if self.one_file == 1 else ""
         cmd += f" -p {self.filepath}" if self.filepath else ""
         return cmd
 
@@ -150,19 +157,10 @@ class App:
         if not self.fetch_inputs():
             return
 
-        command = self.compile_command()
-        nterms, subject, filepath, lower, upper, include_summer = parse_args(command.split()[1:])
+        command = self.compile_command().split()[1:]
 
         try:
-            compile_csv(
-                nterms=nterms, 
-                subject=subject, 
-                lower=lower, 
-                upper=upper, 
-                include_summer=include_summer, 
-                path=filepath, 
-                use_ray=False
-            )
+            run(command, use_ray=False)
         except Exception as e:
             self.status_label.config(text="Oops! An Error Occurred.")
             # NOTE: for debugging purposes
