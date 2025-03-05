@@ -160,6 +160,7 @@ class App:
         command = self.compile_command().split()[1:]
 
         try:
+            print(f"Running Command:\n{command}")
             run(command, use_ray=False)
         except Exception as e:
             self.status_label.config(text="Oops! An Error Occurred.")
