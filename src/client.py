@@ -4,10 +4,11 @@ import math
 
 import pandas as pd
 
-from tqdm import tqdm
+from datetime import datetime
 from itertools import chain
+from tqdm import tqdm
 from utils import fetch, DataPath, save_df
-
+from zoneinfo import ZoneInfo
 
 CRAWLER_URL = "https://gt-scheduler.github.io/crawler-v2/"
 SEAT_URL = "https://gt-scheduler.azurewebsites.net/proxy/class_section?"
@@ -48,18 +49,28 @@ def fetch_nterms(n, include_summer=True) -> list[str]:
     return nterms
 
 
-def fetch_course_data(term, subjects, lower=0, upper=math.inf) -> list[str]:
-    """
-    Gets course data for all courses of the specified subjects offered during the given term.
-    """
+def fetch_data(term) -> dict[str, any]:
     url = f"{CRAWLER_URL}{term}.json"
     data = fetch(url=url)
     if not data:
         return
 
+    processed = {
+        "courses": data["courses"],
+        "updatedAt": data["updatedAt"],
+        **data["caches"],
+    }
+
+    return processed
+
+
+def parse_course_data(course_data, subjects, lower=0, upper=math.inf) -> list[str]:
+    """
+    Gets relevant course data for all courses of the specified subjects offered during the given term.
+    """
     courses = [] # course names
     locations = {} # {crn : location}
-    for course in data["courses"].keys():
+    for course in course_data.keys():
         match = re.match(r"([A-Za-z]+)\s(\d+)(\D*)", course)
         sub, num, _ = match.groups()
         num = int(num)
@@ -69,7 +80,7 @@ def fetch_course_data(term, subjects, lower=0, upper=math.inf) -> list[str]:
             # course format: [name[str], sections[dict], prereqs[list], description[str]]
             # section format: {str: [crn[str], [[int, days[str], location[str], int, profs[list], ...]], ...]}
             try:
-                section = data["courses"][course][1]
+                section = course_data[course][1]
                 locations.update({section[i][0] : section[i][1][0][2] for i in section if section[i][1][0][2] != "TBA"})
             except: pass
             finally:
@@ -196,13 +207,16 @@ def compile_csv(nterms, subjects, lower, upper, include_summer, one_file, path="
     terms = fetch_nterms(nterms, include_summer)
 
     term_dfs = []
+    last_updated_time = ""
     for term in terms:
         print(f"Processing {parse_term(term)} data...")
-        courses, locations = fetch_course_data(term=term, subjects=subjects, lower=lower, upper=upper)
+        data = fetch_data(term=term)
+        last_updated_time = datetime.strptime(data['updatedAt'], "%Y-%m-%dT%H:%M:%S.%fZ").replace(
+            tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/New_York")).strftime("%Y-%m-%d-%H:%M")
+        courses, locations = parse_course_data(data["courses"], subjects=subjects, lower=lower, upper=upper)
 
         data = []
         if use_ray:
-            pass
             if not ray.is_initialized():
                 ray.init(ignore_reinit_error=True)
 
@@ -219,12 +233,12 @@ def compile_csv(nterms, subjects, lower, upper, include_summer, one_file, path="
 
         df = formatted_df(data=data, locations=locations)
         if not one_file:
-            save_df(df, path, f"enrollment_data_{'_'.join(parse_term(term).lower().split())}.csv")
+            save_df(df, path, f"{'_'.join(parse_term(term).lower().split())}_enrollment_data_{last_updated_time}.csv")
         else:
             term_dfs.append(df)
 
     if one_file:
-        save_df(pd.concat(term_dfs), path, "enrollment_data.csv")
+        save_df(pd.concat(term_dfs), path, f"enrollment_data_{last_updated_time}.csv")
 
 
 if __name__ == '__main__':

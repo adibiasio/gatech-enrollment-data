@@ -1,7 +1,7 @@
 # import platform
 # import subprocess
 import os, sys
-import traceback
+# import traceback
 
 import tkinter as tk
 from tkinter import filedialog, messagebox
