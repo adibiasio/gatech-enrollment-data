@@ -7,25 +7,11 @@ import pandas as pd
 from datetime import datetime
 from itertools import chain
 from tqdm import tqdm
-from utils import fetch, DataPath, save_df
+from utils import *
 from zoneinfo import ZoneInfo
 
 CRAWLER_URL = "https://gt-scheduler.github.io/crawler-v2/"
 SEAT_URL = "https://gt-scheduler.azurewebsites.net/proxy/class_section?"
-
-
-def parse_term(term):
-    # Term Format: YYYYMM (i.e. 202502)
-    year, month = term[:4], int(term[4:])
-    
-    if month < 5:
-        semester = "Spring"
-    elif month < 8:
-        semester = "Summer"
-    else:
-        semester = "Fall"
-
-    return f"{semester} {year}"
 
 
 def fetch_nterms(n, include_summer=True) -> list[str]:
