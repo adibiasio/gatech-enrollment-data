@@ -55,7 +55,7 @@ python src/script.py [-t <num_terms>] [-s <subject 1> ... <subject n>] [-l <lowe
 
 | Flag          | Description                                       | Default Value              |
 |---------------|---------------------------------------------------|----------------------------|
-| `-t <int>`    | Specifies the number of terms to process.         | `4`                        |
+| `-t <int>`    | Specifies the number of terms to process.         | `1`                        |
 | `-s <string> ... <string>` | Specifies the subjects of the output.| None (all returned)      |
 | `-l <int>`    | Specifies course number lower bound (inclusive).  | `0`                        |
 | `-u <int>`    | Specifies course number upper bound (inclusive).  | `inf`                      |

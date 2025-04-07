@@ -5,7 +5,7 @@ from client import compile_csv
 
 def parse_args(args):
     # default args
-    nterms = 4
+    nterms = 1
     subjects = set()
     filepath = ""
     lower = 0
