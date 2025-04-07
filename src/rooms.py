@@ -43,7 +43,7 @@ def pdf_reader(path, out):
                         room_data.append([bldg_code, room, capacity])
 
     building_df = pd.DataFrame(building_data, columns=["Building Name", "Building Code"])
-    room_df = pd.DataFrame(room_data, columns=["Building Code", "Room", "Capacity"])
+    room_df = pd.DataFrame(room_data, columns=["Building Code", "Room", "Room Capacity"])
 
     # TODO: Map gt scheduler building names to building codes using faiss
     # ...

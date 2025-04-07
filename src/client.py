@@ -41,6 +41,13 @@ def fetch_data(term) -> dict[str, any]:
     if not data:
         return
 
+    # format period times
+    data["caches"]["periods"] = [
+        (t.split(" - ")[0][:2] + ":" + t.split(" - ")[0][2:], 
+        t.split(" - ")[1][:2] + ":" + t.split(" - ")[1][2:]) if t != "TBA" else ("", "")
+        for t in data["caches"]["periods"]
+    ]
+
     processed = {
         "courses": data["courses"],
         "updatedAt": data["updatedAt"],
@@ -50,51 +57,53 @@ def fetch_data(term) -> dict[str, any]:
     return processed
 
 
-def parse_course_data(course_data, subjects, lower=0, upper=math.inf) -> list[str]:
+def parse_course_data(data, subjects, lower=0, upper=math.inf) -> list[str]:
     """
     Gets relevant course data for all courses of the specified subjects offered during the given term.
     """
-    courses = [] # course names
-    locations = {} # {crn : location}
-    for course in course_data.keys():
+    courses = {} # {course: [crns]}
+    parsed_data = {} # {crn : data}
+    for course in data["courses"].keys():
         match = re.match(r"([A-Za-z]+)\s(\d+)(\D*)", course)
         sub, num, _ = match.groups()
         num = int(num)
         valid_subject = len(subjects) == 0 or sub.upper() in subjects
         valid_number = lower <= num <= upper
         if valid_subject and valid_number:
-            # course format: [name[str], sections[dict], prereqs[list], description[str]]
-            # section format: {str: [crn[str], [[int, days[str], location[str], int, profs[list], ...]], ...]}
+            # course format: https://github.com/gt-scheduler/crawler/blob/f7079cb50b7094d63e1f24c07fd8f237767dff2d/src/types.ts#L81
+            # section format: https://github.com/gt-scheduler/crawler/blob/f7079cb50b7094d63e1f24c07fd8f237767dff2d/src/types.ts#L119
             try:
-                section = course_data[course][1]
-                locations.update({section[i][0] : section[i][1][0][2] for i in section if section[i][1][0][2] != "TBA"})
+                crns = []
+                for sname, section in data["courses"][course][1].items():
+                    crn = section[0]
+                    crns.append(crn)
+                    
+                    primary = []
+                    additional = []
+                    for instructor in section[1][0][4]:
+                        if "(P)" in instructor:
+                            primary.append(instructor[:-4])
+                        else:
+                            additional.append(instructor)
+                    
+                    parsed_data.update({crn: {
+                        "Section": sname,
+                        "Start Time": data["periods"][section[1][0][0]][0],
+                        "End Time": data["periods"][section[1][0][0]][1],
+                        "Days": section[1][0][1],
+                        "Building": ' '.join(section[1][0][2].split()[:-1]) if section[1][0][2] != "TBA" else "",
+                        "Room": section[1][0][2].split()[-1] if section[1][0][2] != "TBA" else "",
+                        "Primary Instructor(s)": ', '.join(primary),
+                        "Additional Instructor(s)": ', '.join(additional),
+                    }})
+                courses.update({course: crns})
+
             except: pass
             finally:
-                courses.append(course)
+                pass
+                # courses.append(course)
 
-    return courses, locations
-
-
-def fetch_section_crns(term, course_name) -> dict[str, str]:
-    """
-    Gets all CRNs of the specified course offered during the given term.
-    
-    Returns:
-    Dict: section[str]: crn[str]
-    """
-    url = f"{CRAWLER_URL}{term}.json"
-    data = fetch(url=url)
-    if not data:
-        return
-
-    crn_list = {}
-    course = data["courses"].get(course_name, [None, {}])[1]
-
-    for section, details in course.items():
-        if details[2] != 0:
-            crn_list[section] = details[0]
-
-    return crn_list
+    return courses, parsed_data
 
 
 def fetch_enrollment_from_crn(term, crn) -> dict[str, int]:
@@ -124,7 +133,7 @@ def fetch_enrollment_from_crn(term, crn) -> dict[str, int]:
     return enrollment_info
 
 
-def append_room_data(df, locations):
+def append_room_data(df):
     # check for locations as indexed into precomputed gt-scheduler saved mappings
     # if not present in mapping, then resort to faiss on the remaining ones (slower solution)
     
@@ -136,12 +145,9 @@ def append_room_data(df, locations):
     # remove the words building, college, and of
     # then find most number of common words
     # also, room number must be valid for the chosen building
-    locations = pd.DataFrame(list(locations.items()), columns=["CRN", "location"])
-    locations[['Building Name', 'Room']] = locations['location'].str.rsplit(n=1, expand=True)
-    locations = locations.drop(columns=["location"])
     
     gt_scheduler_names = pd.read_csv(DataPath("gt-scheduler-buildings.csv"))
-    locations = locations.merge(gt_scheduler_names, on="Building Name", how="left")
+    locations = pd.DataFrame(df, columns=["CRN", "Building", "Room"]).merge(gt_scheduler_names, on="Building", how="left")
 
     # TODO: add failsafe faiss for mismatches here
     # ...
@@ -151,42 +157,40 @@ def append_room_data(df, locations):
     capacities['idx'] = list(zip(capacities['Building Code'].astype(str).str.lstrip('0'), capacities['Room']))
     locations['idx'] = list(zip(locations['Building Code'].str.lstrip('0'), locations['Room']))
     capacities.set_index('idx', inplace=True)
-    locations["Capacity"] = locations["idx"].map(capacities["Capacity"])
-    locations = locations.reset_index().drop(columns=["idx"])
+    locations["Room Capacity"] = locations["idx"].map(capacities["Room Capacity"])
+    locations = locations.reset_index().drop(columns=["idx", "Building", "Room"])
     return df.merge(locations, on="CRN", how="left").drop(columns=["index"])
 
 
-def formatted_df(data, locations):
+def formatted_df(data):
     if len(data) == 0:
         return pd.DataFrame()
     df = pd.DataFrame([d for d in data if d is not None])
-    df = append_room_data(df=df, locations=locations)
-    df["Utilization"] = df["Enrollment Actual"] / df["Capacity"]
+    df = append_room_data(df=df)
+    df["Utilization"] = df["Enrollment Actual"] / df["Room Capacity"]
     df = df.sort_values(by=["Term", "Course"])    
     return df
 
 
-def process_course(term, course):
-    crns = fetch_section_crns(term=term, course_name=course)
-
+def process_course(term, course, crns, data):
     sections = []
-    for section, crn in crns.items():    
+    for crn in crns:    
         enrollment = fetch_enrollment_from_crn(term=term, crn=crn)
         sections.append({
             "Term": parse_term(term),
             "Subject": course.split(" ")[0],
             "Course": course,
-            "Section": section,
             "CRN": crn,
-            **enrollment
+            **data[crn],
+            **enrollment,
         })
 
     return sections
 
 
 @ray.remote
-def process_course_remote(term, course):
-    return process_course(term=term, course=course)
+def process_course_remote(term, course, crns, data):
+    return process_course(term=term, course=course, crns=crns, data=data)
 
 
 def compile_csv(nterms, subjects, lower, upper, include_summer, one_file, path="", use_ray=False):
@@ -196,17 +200,17 @@ def compile_csv(nterms, subjects, lower, upper, include_summer, one_file, path="
     last_updated_time = ""
     for term in terms:
         print(f"Processing {parse_term(term)} data...")
-        data = fetch_data(term=term)
-        last_updated_time = datetime.strptime(data['updatedAt'], "%Y-%m-%dT%H:%M:%S.%fZ").replace(
+        core_data = fetch_data(term=term)
+        last_updated_time = datetime.strptime(core_data['updatedAt'], "%Y-%m-%dT%H:%M:%S.%fZ").replace(
             tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/New_York")).strftime("%Y-%m-%d-%H:%M")
-        courses, locations = parse_course_data(data["courses"], subjects=subjects, lower=lower, upper=upper)
+        courses, parsed_data = parse_course_data(core_data, subjects=subjects, lower=lower, upper=upper)
 
         data = []
         if use_ray:
             if not ray.is_initialized():
                 ray.init(ignore_reinit_error=True)
 
-            futures = [process_course_remote.remote(term, course) for course in courses]
+            futures = [process_course_remote.remote(term, course, crns, parsed_data) for course, crns in courses.items()]
             with tqdm(total=len(futures)) as pbar:
                 while futures:
                     done, futures = ray.wait(futures, num_returns=1, timeout=None)
@@ -214,10 +218,10 @@ def compile_csv(nterms, subjects, lower, upper, include_summer, one_file, path="
                         data.extend(list(chain.from_iterable(ray.get(done))))
                         pbar.update(1)
         else:
-            for course in tqdm(courses):
-                data.extend(process_course(term, course))
+            for course, crns in tqdm(courses.items()):
+                data.extend(process_course(term, course, crns, parsed_data))
 
-        df = formatted_df(data=data, locations=locations)
+        df = formatted_df(data=data)
         if not one_file:
             save_df(df, path, f"{'_'.join(parse_term(term).lower().split())}_enrollment_data_{last_updated_time}.csv")
         else:
