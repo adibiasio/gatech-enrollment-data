@@ -34,3 +34,17 @@ def fetch(url, as_text=False):
     except Exception as error:
         print("Error fetching the data:", error)
 
+
+def parse_term(term):
+    # Term Format: YYYYMM (i.e. 202502)
+    year, month = term[:4], int(term[4:])
+    
+    if month < 5:
+        semester = "Spring"
+    elif month < 8:
+        semester = "Summer"
+    else:
+        semester = "Fall"
+
+    return f"{semester} {year}"
+
