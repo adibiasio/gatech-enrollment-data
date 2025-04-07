@@ -17,7 +17,7 @@ class App:
         self.github = "https://github.com/adibiasio/gatech-enrollment-data"
 
         # Default values
-        self.num_terms = 4
+        self.num_terms = 1
         self.subject = ''
         self.lower_bound = 0
         self.upper_bound = float('inf')
@@ -46,7 +46,7 @@ class App:
         self.root.grid_columnconfigure(1, weight=3)
         
         # Number of terms
-        tk.Label(self.root, text="Number of Terms (default 4):").grid(row=2, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(self.root, text="Number of Terms (default 1):").grid(row=2, column=0, padx=10, pady=5, sticky="e")
         self.num_terms_entry = tk.Entry(self.root)
         self.num_terms_entry.insert(0, str(self.num_terms))
         self.num_terms_entry.grid(row=2, column=1, padx=10, pady=5, sticky="w")
