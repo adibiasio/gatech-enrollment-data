@@ -201,8 +201,9 @@ def compile_csv(nterms, subjects, lower, upper, include_summer, one_file, path="
     for term in terms:
         print(f"Processing {parse_term(term)} data...")
         core_data = fetch_data(term=term)
-        last_updated_time = datetime.strptime(core_data['updatedAt'], "%Y-%m-%dT%H:%M:%S.%fZ").replace(
-            tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/New_York")).strftime("%Y-%m-%d-%H%M")
+        if not last_updated_time or not one_file:
+            last_updated_time = datetime.strptime(core_data['updatedAt'], "%Y-%m-%dT%H:%M:%S.%fZ").replace(
+                tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/New_York")).strftime("%Y-%m-%d-%H%M")
         courses, parsed_data = parse_course_data(core_data, subjects=subjects, lower=lower, upper=upper)
 
         data = []
