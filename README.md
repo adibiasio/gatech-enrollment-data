@@ -40,7 +40,7 @@ python src/app.py
 ```
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/ada51838-83bc-4b8e-a294-48abeeafd29b" alt="Centered Image">
+  <img src="https://github.com/user-attachments/assets/cec52eda-2c27-46f4-9743-59a84e77182a" alt="Centered Image">
 </div>
 
 ## Script Usage
