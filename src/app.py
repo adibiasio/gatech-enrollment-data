@@ -106,7 +106,7 @@ class App:
 
         self.subject = self.subject_entry.get()
 
-        pattern = r'^\d+-\d+$'
+        pattern = r'^(\d+)-(\d+)$'
         range_strs = [s.strip() for s in self.range_entry.get().split(",")]
         for range_str in range_strs:
             match = re.match(pattern, range_str)
