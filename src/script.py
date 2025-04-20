@@ -38,7 +38,7 @@ def parse_args(args):
         elif args[i] == "-r" and i + 1 < len(args):
             ranges.clear()
             pattern = r'^(\d+)-(\d+)$'
-            while i + 1 < len(args):
+            while i + 1 < len(args) and args[i + 1][0] != '-':
                 match = re.match(pattern, args[i + 1])
                 if match:
                     ranges.append((int(match.group(1)), int(match.group(2))))
