@@ -139,13 +139,13 @@ class App:
 
 
     def run_script(self):
+        if not self.fetch_inputs():
+            return
+        
         self.submit_button.config(state=tk.DISABLED)
         self.root.update()
         self.status_label.config(text="Running...")
         self.root.update()
-
-        if not self.fetch_inputs():
-            return
 
         command = self.compile_command().split()[1:]
 
