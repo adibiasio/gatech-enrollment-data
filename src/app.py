@@ -1,6 +1,6 @@
 # import platform
 # import subprocess
-import os, sys
+import os, re, sys
 # import traceback
 
 import tkinter as tk
@@ -19,8 +19,7 @@ class App:
         # Default values
         self.num_terms = 1
         self.subject = ''
-        self.lower_bound = 0
-        self.upper_bound = float('inf')
+        self.ranges = []
         self.filepath = ''
         self.skip_summer = False
         self.one_file = False
@@ -32,7 +31,7 @@ class App:
         paragraph = (
             "This application allows you to customize the settings for the enrollment data script.\n"
             "All options are optional and if unspecified, all subjects / course numbers will be\n"
-            "fetched. Optionally, you can skip summer terms.\n"
+            "fetched. For multiple course ranges, separate with commas. Optionally, you can skip summer terms.\n"
             "\n"
             "You must choose a file path to save the output files."
         )
@@ -56,40 +55,35 @@ class App:
         self.subject_entry = tk.Entry(self.root)
         self.subject_entry.grid(row=3, column=1, padx=10, pady=5, sticky="w")
 
-        # Lower bound
-        tk.Label(self.root, text="Course No. Lower Bound:").grid(row=4, column=0, padx=10, pady=5, sticky="e")
-        self.lower_bound_entry = tk.Entry(self.root)
-        self.lower_bound_entry.grid(row=4, column=1, padx=10, pady=5, sticky="w")
-
-        # Upper bound
-        tk.Label(self.root, text="Course No. Upper Bound:").grid(row=5, column=0, padx=10, pady=5, sticky="e")
-        self.upper_bound_entry = tk.Entry(self.root)
-        self.upper_bound_entry.grid(row=5, column=1, padx=10, pady=5, sticky="w")
+        # Course Range
+        tk.Label(self.root, text="Course Range (i.e. 2110-3000):").grid(row=4, column=0, padx=10, pady=5, sticky="e")
+        self.range_entry = tk.Entry(self.root)
+        self.range_entry.grid(row=4, column=1, padx=10, pady=5, sticky="w")
 
         # Filepath and Browse button
-        tk.Label(self.root, text="Filepath (required):").grid(row=6, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(self.root, text="Filepath (required):").grid(row=5, column=0, padx=10, pady=5, sticky="e")
         self.filepath_entry = tk.Entry(self.root)
-        self.filepath_entry.grid(row=6, column=1, padx=10, pady=5, sticky="w")
+        self.filepath_entry.grid(row=5, column=1, padx=10, pady=5, sticky="w")
         self.browse_button = tk.Button(self.root, text="Browse", command=self.browse_folder)
-        self.browse_button.grid(row=6, column=2, padx=10, pady=5)
+        self.browse_button.grid(row=5, column=2, padx=10, pady=5)
 
         # Skip summer terms
         self.skip_summer_var = tk.IntVar()
         self.skip_summer_checkbox = tk.Checkbutton(self.root, text="Skip Summer Terms", variable=self.skip_summer_var)
-        self.skip_summer_checkbox.grid(row=7, column=0, columnspan=3, pady=5)
+        self.skip_summer_checkbox.grid(row=6, column=0, columnspan=3, pady=5)
 
         # Export to one file
         self.one_file_var = tk.IntVar()
         self.one_file_checkbox = tk.Checkbutton(self.root, text="Export to One File", variable=self.one_file_var)
-        self.one_file_checkbox.grid(row=8, column=0, columnspan=3, pady=5)
+        self.one_file_checkbox.grid(row=7, column=0, columnspan=3, pady=5)
 
         # Submit button
         self.submit_button = tk.Button(self.root, text="Run Script", command=self.run_script)
-        self.submit_button.grid(row=9, column=0, columnspan=3, pady=10)
+        self.submit_button.grid(row=8, column=0, columnspan=3, pady=10)
 
         # Status
         self.status_label = tk.Label(self.root, text="", justify="center", padx=10)
-        self.status_label.grid(row=10, column=0, columnspan=3, pady=10)
+        self.status_label.grid(row=9, column=0, columnspan=3, pady=10)
 
 
     def browse_folder(self):
@@ -111,19 +105,16 @@ class App:
             return False
 
         self.subject = self.subject_entry.get()
-        try:
-            low_str = self.lower_bound_entry.get()
-            self.lower_bound = int(low_str) if low_str else self.lower_bound
-        except ValueError:
-            messagebox.showerror("Input Error", "Lower Bound must be an integer.")
-            return False
 
-        try:
-            up_str = self.upper_bound_entry.get()
-            self.upper_bound = int(up_str) if up_str and up_str != 'inf' else float('inf')
-        except ValueError:
-            messagebox.showerror("Input Error", "Upper Bound must be an integer or 'inf'.")
-            return False
+        pattern = r'^\d+-\d+$'
+        range_strs = [s.strip() for s in self.range_entry.get().split(",")]
+        for range_str in range_strs:
+            match = re.match(pattern, range_str)
+            if match:
+              self.ranges.append((int(match.group(1)), int(match.group(2))))
+            else:
+                messagebox.showerror("Input Error", "Invalid Range Format. Use <int>-<int>, ..., <int>-<int>")
+                return False
 
         self.skip_summer = self.skip_summer_var.get()
         self.one_file = self.one_file_var.get()
@@ -140,8 +131,7 @@ class App:
         cmd = f'{python_executable} script.py'
         cmd += f" -t {self.num_terms}"
         cmd += f" -s {' '.join(self.subject.replace(',',' ').split())}" if self.subject else ""
-        cmd += f" -l {self.lower_bound}" if self.lower_bound > 0 else ""
-        cmd += f" -u {self.upper_bound}" if self.upper_bound > 0 and self.upper_bound != float("inf") else ""
+        cmd += f" -r {' '.join([f'{l}-{u}' for l, u in self.ranges])}" if self.ranges else ""
         cmd += " -m" if self.skip_summer == 1 else ""
         cmd += " -o" if self.one_file == 1 else ""
         cmd += f" -p {self.filepath}" if self.filepath else ""

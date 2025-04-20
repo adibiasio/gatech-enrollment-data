@@ -48,7 +48,7 @@ python src/app.py
 You can also run the program from the command line using the following syntax:
 
 ```bash
-python src/script.py [-t <num_terms>] [-s <subject 1> ... <subject n>] [-l <lower_bound>] [-u <upper_bound>] [-p <filepath>] [-m] [-o]
+python src/script.py [-t <num_terms>] [-s <subject 1> ... <subject n>] [-r <lower>-<upper> ... <lower>-<upper>] [-p <filepath>] [-m] [-o]
 ```
 
 ### Flags
@@ -57,8 +57,7 @@ python src/script.py [-t <num_terms>] [-s <subject 1> ... <subject n>] [-l <lowe
 |---------------|---------------------------------------------------|----------------------------|
 | `-t <int>`    | Specifies the number of terms to process.         | `1`                        |
 | `-s <string> ... <string>` | Specifies the subjects of the output.| None (all returned)      |
-| `-l <int>`    | Specifies course number lower bound (inclusive).  | `0`                        |
-| `-u <int>`    | Specifies course number upper bound (inclusive).  | `inf`                      |
+| `-r <int>-<int> ... <int>-<int>`    | Specifies course number bounds (inclusive).  | `0-inf`                        |
 | `-p <string>` | Specifies the file path for saving the CSV.       | `""` (current directory)   |
 | `-m`          | If included, skips all summer terms.              | summer terms included      |
 | `-o`          | If included, outputs all terms to one file.       | one file per term      |
@@ -66,7 +65,7 @@ python src/script.py [-t <num_terms>] [-s <subject 1> ... <subject n>] [-l <lowe
 
 ### Sample Run
 ```
-(.venv) root@andrew:~# python3 src/script.py -t 6 -s CS -u 4800
+(.venv) root@andrew:~# python3 src/script.py -t 6 -s CS -r 0-4699 6000-7500
 2025-01-21 01:12:05,901 INFO worker.py:1821 -- Started a local Ray instance.
 Processing Spring 2025 data...
 100%| ███████████████████████████████████████████████████| 73/73 [01:03<00:00,  1.15it/s]

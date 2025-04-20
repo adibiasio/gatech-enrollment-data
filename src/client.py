@@ -57,7 +57,7 @@ def fetch_data(term) -> dict[str, any]:
     return processed
 
 
-def parse_course_data(data, subjects, lower=0, upper=math.inf) -> list[str]:
+def parse_course_data(data, subjects, ranges) -> list[str]:
     """
     Gets relevant course data for all courses of the specified subjects offered during the given term.
     """
@@ -68,7 +68,7 @@ def parse_course_data(data, subjects, lower=0, upper=math.inf) -> list[str]:
         sub, num, _ = match.groups()
         num = int(num)
         valid_subject = len(subjects) == 0 or sub.upper() in subjects
-        valid_number = lower <= num <= upper
+        valid_number = any([l <= num <= u for l, u in ranges])
         if valid_subject and valid_number:
             # course format: https://github.com/gt-scheduler/crawler/blob/f7079cb50b7094d63e1f24c07fd8f237767dff2d/src/types.ts#L81
             # section format: https://github.com/gt-scheduler/crawler/blob/f7079cb50b7094d63e1f24c07fd8f237767dff2d/src/types.ts#L119
@@ -98,10 +98,8 @@ def parse_course_data(data, subjects, lower=0, upper=math.inf) -> list[str]:
                     }})
                 courses.update({course: crns})
 
-            except: pass
-            finally:
+            except:
                 pass
-                # courses.append(course)
 
     return courses, parsed_data
 
@@ -193,7 +191,7 @@ def process_course_remote(term, course, crns, data):
     return process_course(term=term, course=course, crns=crns, data=data)
 
 
-def compile_csv(nterms, subjects, lower, upper, include_summer, one_file, path="", use_ray=False):
+def compile_csv(nterms, subjects, ranges, include_summer, one_file, path="", use_ray=False):
     terms = fetch_nterms(nterms, include_summer)
 
     term_dfs = []
@@ -204,7 +202,7 @@ def compile_csv(nterms, subjects, lower, upper, include_summer, one_file, path="
         if not last_updated_time or not one_file:
             last_updated_time = datetime.strptime(core_data['updatedAt'], "%Y-%m-%dT%H:%M:%S.%fZ").replace(
                 tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/New_York")).strftime("%Y-%m-%d-%H%M")
-        courses, parsed_data = parse_course_data(core_data, subjects=subjects, lower=lower, upper=upper)
+        courses, parsed_data = parse_course_data(core_data, subjects=subjects, ranges=ranges)
 
         data = []
         if use_ray:
