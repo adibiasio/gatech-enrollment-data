@@ -10,6 +10,8 @@ from tqdm import tqdm
 from utils import *
 from zoneinfo import ZoneInfo
 
+# TODO: make a SchedulerClient class to encapsulate all fetching functionality
+
 CRAWLER_URL = "https://gt-scheduler.github.io/crawler-v2/"
 SEAT_URL = "https://gt-scheduler.azurewebsites.net/proxy/class_section?"
 
@@ -131,7 +133,7 @@ def fetch_enrollment_from_crn(term, crn) -> dict[str, int]:
     return enrollment_info
 
 
-def append_room_data(df):
+def append_room_data(df: pd.DataFrame) -> pd.DataFrame:
     # check for locations as indexed into precomputed gt-scheduler saved mappings
     # if not present in mapping, then resort to faiss on the remaining ones (slower solution)
     
@@ -160,7 +162,7 @@ def append_room_data(df):
     return df.merge(locations, on="CRN", how="left").drop(columns=["index"])
 
 
-def formatted_df(data):
+def formatted_df(data: pd.DataFrame) -> pd.DataFrame:
     if len(data) == 0:
         return pd.DataFrame()
     df = pd.DataFrame([d for d in data if d is not None])
@@ -170,7 +172,49 @@ def formatted_df(data):
     return df
 
 
-def process_course(term, course, crns, data):
+def group_by_room_and_time(data: pd.DataFrame) -> pd.DataFrame:
+    def unique(series):
+        return ', '.join(set(series))
+
+    # columns to group by
+    idx = [
+        'Term', 
+        'Start Time', 
+        'End Time', 
+        'Days', 
+        'Building', 
+        'Building Code', 
+        'Room', 
+        'Room Capacity',
+    ]
+
+    # defined aggregate functions
+    agg_fns = {
+        "Subject": ("Subject", unique),
+        "Course": ("Course", unique),
+        "CRN": ("CRN", unique),
+        "Primary Instructor(s)": ("Primary Instructor(s)", unique),
+        "Additional Instructor(s)": ("Additional Instructor(s)", unique),
+        "Enrollment Actual": ("Enrollment Actual", "sum"),
+        "Enrollment Maximum": ("Enrollment Maximum", "sum"),
+        "Enrollment Seats Available": ("Enrollment Seats Available", "sum"),
+        "Waitlist Capacity": ("Waitlist Capacity", "sum"),
+        "Waitlist Actual": ("Waitlist Actual", "sum"),
+        "Waitlist Seats Available": ("Waitlist Seats Available", "sum"),
+        "Utilization": ("Utilization", "sum"),
+        "Count": ("CRN", "count"),
+
+    }
+
+    for col in data.columns:
+        if col not in agg_fns and col not in idx:
+            agg_fns.update({col: (col, unique)})
+
+    grouped = data.groupby(idx, dropna=False).agg(**agg_fns).reset_index()
+    return grouped
+
+
+def process_course(term, course, crns, data) -> list[dict]:
     sections = []
     for crn in crns:    
         enrollment = fetch_enrollment_from_crn(term=term, crn=crn)
@@ -191,43 +235,65 @@ def process_course_remote(term, course, crns, data):
     return process_course(term=term, course=course, crns=crns, data=data)
 
 
-def compile_csv(nterms, subjects, ranges, include_summer, one_file, path="", use_ray=False):
+def load_data(term, courses, parsed_data, use_ray) -> list:
+    data = []
+    if use_ray:
+        if not ray.is_initialized():
+            ray.init(ignore_reinit_error=True)
+
+        futures = [process_course_remote.remote(term, course, crns, parsed_data)
+                   for course, crns in courses.items()]
+
+        with tqdm(total=len(futures)) as pbar:
+            while futures:
+                done, futures = ray.wait(futures, num_returns=1, timeout=None)
+                for _ in done:
+                    data.extend(list(chain.from_iterable(ray.get(done))))
+                    pbar.update(1)
+    else:
+        for course, crns in tqdm(courses.items()):
+            data.extend(process_course(term, course, crns, parsed_data))
+
+    return data
+
+
+def compile_csv(nterms, subjects, ranges, include_summer, one_file, save_all, save_grouped, path="", use_ray=False):
     terms = fetch_nterms(nterms, include_summer)
 
     term_dfs = []
     last_updated_time = ""
     for term in terms:
         print(f"Processing {parse_term(term)} data...")
-        core_data = fetch_data(term=term)
+        raw_data = fetch_data(term=term)
         if not last_updated_time or not one_file:
-            last_updated_time = datetime.strptime(core_data['updatedAt'], "%Y-%m-%dT%H:%M:%S.%fZ").replace(
+            last_updated_time = datetime.strptime(raw_data['updatedAt'], "%Y-%m-%dT%H:%M:%S.%fZ").replace(
                 tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/New_York")).strftime("%Y-%m-%d-%H%M")
-        courses, parsed_data = parse_course_data(core_data, subjects=subjects, ranges=ranges)
+        courses, parsed_data = parse_course_data(raw_data, subjects=subjects, ranges=ranges)
 
-        data = []
-        if use_ray:
-            if not ray.is_initialized():
-                ray.init(ignore_reinit_error=True)
-
-            futures = [process_course_remote.remote(term, course, crns, parsed_data) for course, crns in courses.items()]
-            with tqdm(total=len(futures)) as pbar:
-                while futures:
-                    done, futures = ray.wait(futures, num_returns=1, timeout=None)
-                    for _ in done:
-                        data.extend(list(chain.from_iterable(ray.get(done))))
-                        pbar.update(1)
-        else:
-            for course, crns in tqdm(courses.items()):
-                data.extend(process_course(term, course, crns, parsed_data))
+        data = load_data(
+            term=term, 
+            courses=courses, 
+            parsed_data=parsed_data,
+            use_ray=use_ray,
+        )
 
         df = formatted_df(data=data)
         if not one_file:
-            save_df(df, path, f"{'_'.join(parse_term(term).lower().split())}_enrollment_data_{last_updated_time}.csv")
+            name = f"{'_'.join(parse_term(term).lower().split())}_enrollment_data_{last_updated_time}.csv"
+            if save_grouped:
+                save_df(group_by_room_and_time(df), path, f'grouped_{name}')
+            if save_all:
+                save_df(df, path, name)
         else:
             term_dfs.append(df)
 
     if one_file:
-        save_df(pd.concat(term_dfs), path, f"enrollment_data_{last_updated_time}.csv")
+        df = pd.concat(term_dfs)
+        name = f"enrollment_data_{last_updated_time}.csv"
+        if save_grouped:
+            save_df(group_by_room_and_time(df), path, f'grouped_{name}')
+        if save_all:
+            save_df(df, path, name)
 
 
 if __name__ == '__main__':

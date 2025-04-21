@@ -11,6 +11,8 @@ def parse_args(args):
     ranges = [(0, math.inf)]
     include_summer = True
     one_file = False
+    save_all = True
+    save_grouped = False
 
     i = 1
     while i < len(args):
@@ -35,6 +37,12 @@ def parse_args(args):
         elif args[i] == "-o":
             one_file = True
             i += 1
+        elif args[i] == "-g":
+            save_grouped = True
+            save_all = False
+            i += 1
+        elif args[i] == "-a":
+            i += 1
         elif args[i] == "-r" and i + 1 < len(args):
             ranges.clear()
             pattern = r'^(\d+)-(\d+)$'
@@ -51,17 +59,22 @@ def parse_args(args):
             print(f"Unknown or incomplete argument: {args[i]}")
             sys.exit(1)
 
-    return nterms, subjects, filepath, ranges, include_summer, one_file
+    if "-a" in args:
+        save_all = True
+
+    return nterms, subjects, filepath, ranges, include_summer, one_file, save_all, save_grouped
 
 
 def run(argv, use_ray=True):
-    nterms, subjects, filepath, ranges, include_summer, one_file = parse_args(argv)
+    nterms, subjects, filepath, ranges, include_summer, one_file, save_all, save_grouped = parse_args(argv)
     compile_csv(
         nterms=nterms,
         subjects=subjects,
         ranges=ranges, 
         include_summer=include_summer, 
         one_file=one_file, 
+        save_all=save_all,
+        save_grouped=save_grouped,
         path=filepath, 
         use_ray=use_ray
     )
@@ -69,7 +82,7 @@ def run(argv, use_ray=True):
 
 if __name__ == '__main__':
     if len(sys.argv) < 1:
-        print("Usage: python script.py [-t <num_terms>] [-s <subject 1> ... <subject n>] [-r <lower>-<upper> ... <lower>-<upper>] [-p <filepath>] [-m] [-o]")
+        print("Usage: python script.py [-t <num_terms>] [-s <subject 1> ... <subject n>] [-r <lower>-<upper> ... <lower>-<upper>] [-p <filepath>] [-m] [-o] [-g] [-a]")
         sys.exit(1)
 
     run(sys.argv)

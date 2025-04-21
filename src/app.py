@@ -77,13 +77,22 @@ class App:
         self.one_file_checkbox = tk.Checkbutton(self.root, text="Export to One File", variable=self.one_file_var)
         self.one_file_checkbox.grid(row=7, column=0, columnspan=3, pady=5)
 
+        # Group Data
+        self.group_data = tk.StringVar(value="grouped")
+        self.grouped_radio = tk.Radiobutton(self.root, text="Group Crosslisted", variable=self.group_data, value="grouped")
+        self.all_radio = tk.Radiobutton(self.root, text="Ungrouped", variable=self.group_data, value="all")
+        self.both_radio = tk.Radiobutton(self.root, text="Both", variable=self.group_data, value="both")
+        self.grouped_radio.grid(row=8, column=0, sticky="w", padx=5)
+        self.all_radio.grid(row=8, column=0, sticky="w", padx=5)
+        self.both_radio.grid(row=8, column=0, sticky="w", padx=5)
+
         # Submit button
         self.submit_button = tk.Button(self.root, text="Run Script", command=self.run_script)
-        self.submit_button.grid(row=8, column=0, columnspan=3, pady=10)
+        self.submit_button.grid(row=9, column=0, columnspan=3, pady=10)
 
         # Status
         self.status_label = tk.Label(self.root, text="", justify="center", padx=10)
-        self.status_label.grid(row=9, column=0, columnspan=3, pady=10)
+        self.status_label.grid(row=10, column=0, columnspan=3, pady=10)
 
 
     def browse_folder(self):
@@ -123,6 +132,8 @@ class App:
             messagebox.showerror("Input Error", "A valid path is required.")
             return False
 
+        self.save_all = self.group_data in ("all", "both")
+        self.save_grouped = self.group_data in ("grouped", "both")
         return True
 
 
@@ -135,6 +146,8 @@ class App:
         cmd += " -m" if self.skip_summer == 1 else ""
         cmd += " -o" if self.one_file == 1 else ""
         cmd += f" -p {self.filepath}" if self.filepath else ""
+        cmd += " -g" if self.save_grouped else ""
+        cmd += " -a" if self.save_all else ""
         return cmd
 
 
