@@ -78,10 +78,11 @@ class App:
         self.one_file_checkbox.grid(row=7, column=0, columnspan=3, pady=5)
 
         # Group Data
-        self.group_data = tk.StringVar(value="grouped")
+        tk.Label(self.root, text="Group Crosslisted Courses:").grid(row=8, column=0, padx=10, pady=5, sticky="e")
+        self.group_data = tk.StringVar(value="all")
         self.radio_frame = tk.Frame(self.root)
-        self.grouped_radio = tk.Radiobutton(self.radio_frame, text="Group Crosslisted", variable=self.group_data, value="grouped")
         self.all_radio = tk.Radiobutton(self.radio_frame, text="Ungrouped", variable=self.group_data, value="all")
+        self.grouped_radio = tk.Radiobutton(self.radio_frame, text="Group Crosslisted", variable=self.group_data, value="grouped")
         self.both_radio = tk.Radiobutton(self.radio_frame, text="Both", variable=self.group_data, value="both")
         self.grouped_radio.pack(side="left", padx=5)
         self.all_radio.pack(side="left", padx=5)
