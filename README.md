@@ -48,20 +48,23 @@ python src/app.py
 You can also run the program from the command line using the following syntax:
 
 ```bash
-python src/script.py [-t <num_terms>] [-s <subject 1> ... <subject n>] [-r <lower>-<upper> ... <lower>-<upper>] [-p <filepath>] [-m] [-o]
+python src/script.py [-t <num_terms>] [-s <subject 1> ... <subject n>] [-r <lower>-<upper> ... <lower>-<upper>] [-p <filepath>] [-m] [-o] [-a] [-g]
 ```
 
 ### Flags
 
-| Flag          | Description                                       | Default Value              |
-|---------------|---------------------------------------------------|----------------------------|
-| `-t <int>`    | Specifies the number of terms to process.         | `1`                        |
-| `-s <string> ... <string>` | Specifies the subjects of the output.| None (all returned)      |
-| `-r <int>-<int> ... <int>-<int>`    | Specifies course number bounds (inclusive).  | `0-inf`                        |
-| `-p <string>` | Specifies the file path for saving the CSV.       | `""` (current directory)   |
-| `-m`          | If included, skips all summer terms.              | summer terms included      |
-| `-o`          | If included, outputs all terms to one file.       | one file per term      |
+| Flag          | Description                                                               | Default Value                  |
+|---------------|---------------------------------------------------                        |----------------------------    |
+| `-t <int>`    | Specifies the number of terms to process.                                 | `1`                            |
+| `-s <string> ... <string>` | Specifies the subjects of the output.                        | None (all returned)            |
+| `-r <int>-<int> ... <int>-<int>` | Specifies course number bounds (inclusive).            | `0-inf`                        |
+| `-p <string>` | Specifies the file path for saving the CSV.                               | `""` (current directory)       |
+| `-m`          | If included, skips all summer terms.                                      | summer terms included          |
+| `-o`          | If included, outputs all terms to one file.                               | one file per term              |
+| `-g`*          | If included, groups crosslisted courses sharing rooms.                   | does not group                 |
+| `-a`*          | If -g is used, include to also output all course data as shown in oscar. | all courses (as seen in oscar) |
 
+*if both flags -g and -a are included, two output files will be generated, one with the grouping and one without.
 
 ### Sample Run
 ```
