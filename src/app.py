@@ -79,12 +79,14 @@ class App:
 
         # Group Data
         self.group_data = tk.StringVar(value="grouped")
-        self.grouped_radio = tk.Radiobutton(self.root, text="Group Crosslisted", variable=self.group_data, value="grouped")
-        self.all_radio = tk.Radiobutton(self.root, text="Ungrouped", variable=self.group_data, value="all")
-        self.both_radio = tk.Radiobutton(self.root, text="Both", variable=self.group_data, value="both")
-        self.grouped_radio.grid(row=8, column=0, sticky="w", padx=5)
-        self.all_radio.grid(row=8, column=0, sticky="w", padx=5)
-        self.both_radio.grid(row=8, column=0, sticky="w", padx=5)
+        self.radio_frame = tk.Frame(self.root)
+        self.grouped_radio = tk.Radiobutton(self.radio_frame, text="Group Crosslisted", variable=self.group_data, value="grouped")
+        self.all_radio = tk.Radiobutton(self.radio_frame, text="Ungrouped", variable=self.group_data, value="all")
+        self.both_radio = tk.Radiobutton(self.radio_frame, text="Both", variable=self.group_data, value="both")
+        self.grouped_radio.pack(side="left", padx=5)
+        self.all_radio.pack(side="left", padx=5)
+        self.both_radio.pack(side="left", padx=5)
+        self.radio_frame.grid(row=8, column=1, pady=5, sticky="w")
 
         # Submit button
         self.submit_button = tk.Button(self.root, text="Run Script", command=self.run_script)
