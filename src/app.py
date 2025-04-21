@@ -74,8 +74,8 @@ class App:
         self.all_radio = tk.Radiobutton(self.radio_frame, text="Ungrouped", variable=self.group_data, value="all")
         self.grouped_radio = tk.Radiobutton(self.radio_frame, text="Group Crosslisted", variable=self.group_data, value="grouped")
         self.both_radio = tk.Radiobutton(self.radio_frame, text="Both", variable=self.group_data, value="both")
-        self.grouped_radio.pack(side="left", padx=5)
         self.all_radio.pack(side="left", padx=5)
+        self.grouped_radio.pack(side="left", padx=5)
         self.both_radio.pack(side="left", padx=5)
         self.radio_frame.grid(row=6, column=1, pady=5, columnspan=2, sticky="w")
 
@@ -119,6 +119,7 @@ class App:
         self.subject = self.subject_entry.get()
 
         pattern = r'^(\d+)-(\d+)$'
+        self.ranges = []
         range_strs = [s.strip() for s in self.range_entry.get().split(",")]
         for range_str in range_strs:
             match = re.match(pattern, range_str)
@@ -135,8 +136,8 @@ class App:
             messagebox.showerror("Input Error", "A valid path is required.")
             return False
 
-        self.save_all = self.group_data in ("all", "both")
-        self.save_grouped = self.group_data in ("grouped", "both")
+        self.save_all = self.group_data.get() in ("all", "both")
+        self.save_grouped = self.group_data.get() in ("grouped", "both")
         return True
 
 
