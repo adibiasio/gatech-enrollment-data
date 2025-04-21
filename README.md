@@ -20,6 +20,7 @@ source .venv/bin/activate          # unix and macOS
 .venv\Scripts\activate             # windows
 ```
 
+
 Step 3: Install required dependencies.
 ```
 pip install -r requirements.txt
@@ -40,7 +41,7 @@ python src/app.py
 ```
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/cec52eda-2c27-46f4-9743-59a84e77182a" alt="Centered Image">
+  <img src="https://github.com/user-attachments/assets/405d2985-f60f-4ccf-97d2-baee3b8afb3d" alt="Centered Image">
 </div>
 
 ## Script Usage
