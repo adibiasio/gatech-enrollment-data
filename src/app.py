@@ -86,7 +86,7 @@ class App:
         self.grouped_radio.pack(side="left", padx=5)
         self.all_radio.pack(side="left", padx=5)
         self.both_radio.pack(side="left", padx=5)
-        self.radio_frame.grid(row=8, column=1, pady=5, sticky="w")
+        self.radio_frame.grid(row=8, column=1, pady=5, columnspan=2, sticky="w")
 
         # Submit button
         self.submit_button = tk.Button(self.root, text="Run Script", command=self.run_script)
