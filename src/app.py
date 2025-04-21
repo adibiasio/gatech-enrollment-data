@@ -67,18 +67,8 @@ class App:
         self.browse_button = tk.Button(self.root, text="Browse", command=self.browse_folder)
         self.browse_button.grid(row=5, column=2, padx=10, pady=5)
 
-        # Skip summer terms
-        self.skip_summer_var = tk.IntVar()
-        self.skip_summer_checkbox = tk.Checkbutton(self.root, text="Skip Summer Terms", variable=self.skip_summer_var)
-        self.skip_summer_checkbox.grid(row=6, column=0, columnspan=3, pady=5)
-
-        # Export to one file
-        self.one_file_var = tk.IntVar()
-        self.one_file_checkbox = tk.Checkbutton(self.root, text="Export to One File", variable=self.one_file_var)
-        self.one_file_checkbox.grid(row=7, column=0, columnspan=3, pady=5)
-
         # Group Data
-        tk.Label(self.root, text="Group Crosslisted Courses:").grid(row=8, column=0, padx=10, pady=5, sticky="e")
+        tk.Label(self.root, text="Group Crosslisted Courses:").grid(row=6, column=0, padx=10, pady=5, sticky="e")
         self.group_data = tk.StringVar(value="all")
         self.radio_frame = tk.Frame(self.root)
         self.all_radio = tk.Radiobutton(self.radio_frame, text="Ungrouped", variable=self.group_data, value="all")
@@ -87,7 +77,17 @@ class App:
         self.grouped_radio.pack(side="left", padx=5)
         self.all_radio.pack(side="left", padx=5)
         self.both_radio.pack(side="left", padx=5)
-        self.radio_frame.grid(row=8, column=1, pady=5, columnspan=2, sticky="w")
+        self.radio_frame.grid(row=6, column=1, pady=5, columnspan=2, sticky="w")
+
+        # Skip summer terms
+        self.skip_summer_var = tk.IntVar()
+        self.skip_summer_checkbox = tk.Checkbutton(self.root, text="Skip Summer Terms", variable=self.skip_summer_var)
+        self.skip_summer_checkbox.grid(row=7, column=0, columnspan=3, pady=5)
+
+        # Export to one file
+        self.one_file_var = tk.IntVar()
+        self.one_file_checkbox = tk.Checkbutton(self.root, text="Export to One File", variable=self.one_file_var)
+        self.one_file_checkbox.grid(row=8, column=0, columnspan=3, pady=5)
 
         # Submit button
         self.submit_button = tk.Button(self.root, text="Run Script", command=self.run_script)
