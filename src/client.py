@@ -1,233 +1,274 @@
+import aiohttp
+import asyncio
 import re
-import ray
-import math
+import time
 
-import pandas as pd
-
-from datetime import datetime
-from itertools import chain
+from logger import setup_logger
 from tqdm import tqdm
 from utils import *
-from zoneinfo import ZoneInfo
-
-CRAWLER_URL = "https://gt-scheduler.github.io/crawler-v2/"
-SEAT_URL = "https://gt-scheduler.azurewebsites.net/proxy/class_section?"
 
 
-def fetch_nterms(n, include_summer=True) -> list[str]:
-    """
-    Gets the term names for the n most recent terms.
-    """
-    url = f"{CRAWLER_URL}"
-    data = fetch(url=url)
-    if not data:
-        return
-
-    nterms = []
-    terms = [t["term"] for t in data["terms"]]
-    for term in reversed(sorted(terms)):
-        if len(nterms) >= n:
-            break
-        if not include_summer and "Summer" in parse_term(term):
-            continue
-        nterms.append(term)
-
-    return nterms
-
-
-def fetch_data(term) -> dict[str, any]:
-    url = f"{CRAWLER_URL}{term}.json"
-    data = fetch(url=url)
-    if not data:
-        return
-
-    # format period times
-    data["caches"]["periods"] = [
-        (t.split(" - ")[0][:2] + ":" + t.split(" - ")[0][2:], 
-        t.split(" - ")[1][:2] + ":" + t.split(" - ")[1][2:]) if t != "TBA" else ("", "")
-        for t in data["caches"]["periods"]
-    ]
-
-    processed = {
-        "courses": data["courses"],
-        "updatedAt": data["updatedAt"],
-        **data["caches"],
-    }
-
-    return processed
-
-
-def parse_course_data(data, subjects, ranges) -> list[str]:
-    """
-    Gets relevant course data for all courses of the specified subjects offered during the given term.
-    """
-    courses = {} # {course: [crns]}
-    parsed_data = {} # {crn : data}
-    for course in data["courses"].keys():
-        match = re.match(r"([A-Za-z]+)\s(\d+)(\D*)", course)
-        sub, num, _ = match.groups()
-        num = int(num)
-        valid_subject = len(subjects) == 0 or sub.upper() in subjects
-        valid_number = any([l <= num <= u for l, u in ranges])
-        if valid_subject and valid_number:
-            # course format: https://github.com/gt-scheduler/crawler/blob/f7079cb50b7094d63e1f24c07fd8f237767dff2d/src/types.ts#L81
-            # section format: https://github.com/gt-scheduler/crawler/blob/f7079cb50b7094d63e1f24c07fd8f237767dff2d/src/types.ts#L119
-            try:
-                crns = []
-                for sname, section in data["courses"][course][1].items():
-                    crn = section[0]
-                    crns.append(crn)
-                    
-                    primary = []
-                    additional = []
-                    for instructor in section[1][0][4]:
-                        if "(P)" in instructor:
-                            primary.append(instructor[:-4])
-                        else:
-                            additional.append(instructor)
-                    
-                    parsed_data.update({crn: {
-                        "Section": sname,
-                        "Start Time": data["periods"][section[1][0][0]][0],
-                        "End Time": data["periods"][section[1][0][0]][1],
-                        "Days": section[1][0][1],
-                        "Building": ' '.join(section[1][0][2].split()[:-1]) if section[1][0][2] != "TBA" else "",
-                        "Room": section[1][0][2].split()[-1] if section[1][0][2] != "TBA" else "",
-                        "Primary Instructor(s)": ', '.join(primary),
-                        "Additional Instructor(s)": ', '.join(additional),
-                    }})
-                courses.update({course: crns})
-
-            except:
-                pass
-
-    return courses, parsed_data
-
-
-def fetch_enrollment_from_crn(term, crn) -> dict[str, int]:
-    """
-    Gets enrollment data of the specified crn offered during the given term.
-    """
-    url = f"{SEAT_URL}term={term}&crn={crn}"
-    data = fetch(url=url, as_text=True)
-    if not data:
-        return
-
-    enrollment_info = {
-        "Enrollment Actual": None,
-        "Enrollment Maximum": None,
-        "Enrollment Seats Available": None,
-        "Waitlist Capacity": None,
-        "Waitlist Actual": None,
-        "Waitlist Seats Available": None
-    }
-
-    for key in enrollment_info.keys():
-        pattern = rf"{key}:</span> <span\s+dir=\"ltr\">(\d+)</span>"
-        match = re.search(pattern, data)
-        if match:
-            enrollment_info[key] = int(match.group(1))
-
-    return enrollment_info
-
-
-def append_room_data(df):
-    # check for locations as indexed into precomputed gt-scheduler saved mappings
-    # if not present in mapping, then resort to faiss on the remaining ones (slower solution)
+class SchedulerClient:
+    CRAWLER_URL = "https://gt-scheduler.github.io/crawler-v2/"
+    SEAT_URL = "https://gt-scheduler.azurewebsites.net/proxy/class_section?"
     
-    # https://chatgpt.com/share/67a7da60-41a8-800d-b663-67fb1c583afc
-    # pretrain sentence transformer on data from HB
-    # use transformer to map gt scheduler building names for an appropriate mapping
-    
-    # ideas for trial run to get the mapping:
-    # remove the words building, college, and of
-    # then find most number of common words
-    # also, room number must be valid for the chosen building
-    
-    gt_scheduler_names = pd.read_csv(DataPath("gt-scheduler-buildings.csv"))
-    locations = pd.DataFrame(df, columns=["CRN", "Building", "Room"]).merge(gt_scheduler_names, on="Building", how="left")
-
-    # TODO: add failsafe faiss for mismatches here
-    # ...
-
-    # Use building code and room tuple to index into and fetch capacity data
-    capacities = pd.read_csv(DataPath("capacities.csv"))
-    capacities['idx'] = list(zip(capacities['Building Code'].astype(str).str.lstrip('0'), capacities['Room']))
-    locations['idx'] = list(zip(locations['Building Code'].str.lstrip('0'), locations['Room']))
-    capacities.set_index('idx', inplace=True)
-    locations["Room Capacity"] = locations["idx"].map(capacities["Room Capacity"])
-    locations = locations.reset_index().drop(columns=["idx", "Building", "Room"])
-    return df.merge(locations, on="CRN", how="left").drop(columns=["index"])
+    def __init__(self):
+        self.logger = setup_logger(name="gt-scheduler-client")
 
 
-def formatted_df(data):
-    if len(data) == 0:
-        return pd.DataFrame()
-    df = pd.DataFrame([d for d in data if d is not None])
-    df = append_room_data(df=df)
-    df["Utilization"] = df["Enrollment Actual"] / df["Room Capacity"]
-    df = df.sort_values(by=["Term", "Course"])    
-    return df
+    def parse_term(self, term: str) -> str:
+        """
+        Parses GT Scheduler term string.
 
+        Args:
+            term (str): GT scheduler term string
+                in YYYYMM format (i.e. 202502).
 
-def process_course(term, course, crns, data):
-    sections = []
-    for crn in crns:    
-        enrollment = fetch_enrollment_from_crn(term=term, crn=crn)
-        sections.append({
-            "Term": parse_term(term),
-            "Subject": course.split(" ")[0],
-            "Course": course,
-            "CRN": crn,
-            **data[crn],
-            **enrollment,
-        })
-
-    return sections
-
-
-@ray.remote
-def process_course_remote(term, course, crns, data):
-    return process_course(term=term, course=course, crns=crns, data=data)
-
-
-def compile_csv(nterms, subjects, ranges, include_summer, one_file, path="", use_ray=False):
-    terms = fetch_nterms(nterms, include_summer)
-
-    term_dfs = []
-    last_updated_time = ""
-    for term in terms:
-        print(f"Processing {parse_term(term)} data...")
-        core_data = fetch_data(term=term)
-        if not last_updated_time or not one_file:
-            last_updated_time = datetime.strptime(core_data['updatedAt'], "%Y-%m-%dT%H:%M:%S.%fZ").replace(
-                tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo("America/New_York")).strftime("%Y-%m-%d-%H%M")
-        courses, parsed_data = parse_course_data(core_data, subjects=subjects, ranges=ranges)
-
-        data = []
-        if use_ray:
-            if not ray.is_initialized():
-                ray.init(ignore_reinit_error=True)
-
-            futures = [process_course_remote.remote(term, course, crns, parsed_data) for course, crns in courses.items()]
-            with tqdm(total=len(futures)) as pbar:
-                while futures:
-                    done, futures = ray.wait(futures, num_returns=1, timeout=None)
-                    for _ in done:
-                        data.extend(list(chain.from_iterable(ray.get(done))))
-                        pbar.update(1)
+        Returns:
+            str: readable term format, i.e. Spring 2025.
+        """
+        year, month = term[:4], int(term[4:])
+        
+        if month < 5:
+            semester = "Spring"
+        elif month < 8:
+            semester = "Summer"
         else:
-            for course, crns in tqdm(courses.items()):
-                data.extend(process_course(term, course, crns, parsed_data))
+            semester = "Fall"
 
-        df = formatted_df(data=data)
-        if not one_file:
-            save_df(df, path, f"{'_'.join(parse_term(term).lower().split())}_enrollment_data_{last_updated_time}.csv")
-        else:
-            term_dfs.append(df)
+        return f"{semester} {year}"
 
-    if one_file:
-        save_df(pd.concat(term_dfs), path, f"enrollment_data_{last_updated_time}.csv")
+
+    def fetch_nterms(self, n: int, include_summer=True) -> list[str]:
+        """
+        Gets the term names for the n most recent terms.
+
+        Args:
+            n (int): number of terms
+            include_summer (bool, optional): Whether to count summer terms. Defaults to True.
+
+        Returns:
+            list[str]: List of term strings.
+        """
+        url = f"{self.CRAWLER_URL}"
+        data = asyncio.run(fetch(url=url))
+        if not data:
+            return
+
+        nterms = []
+        terms = [t["term"] for t in data["terms"]]
+        for term in reversed(sorted(terms)):
+            if len(nterms) >= n:
+                break
+            if not include_summer and "Summer" in self.parse_term(term):
+                continue
+            nterms.append(term)
+
+        return nterms
+
+
+    def fetch_data(self, term: str) -> dict[str, any]:
+        """
+        Gets the term data and metadata for the specified term.
+
+        Args:
+            term (str): GT scheduler term string.
+
+        Returns:
+            dict[str, any]: Processed GT scheduler term dictionary object.
+        """
+        url = f"{self.CRAWLER_URL}{term}.json"
+        data = asyncio.run(fetch(url=url))
+        if not data:
+            return
+
+        # format period times
+        data["caches"]["periods"] = [
+            (t.split(" - ")[0][:2] + ":" + t.split(" - ")[0][2:], 
+            t.split(" - ")[1][:2] + ":" + t.split(" - ")[1][2:]) if t != "TBA" else ("", "")
+            for t in data["caches"]["periods"]
+        ]
+
+        processed = {
+            "courses": data["courses"],
+            "updatedAt": data["updatedAt"],
+            **data["caches"],
+        }
+
+        return processed
+
+
+    async def _fetch_enrollment(self, term: str, crns: str) -> dict:
+        """
+        Asynchronous helper method for fetching all enrollment data.
+
+        Args:
+            term (str): GT scheduler term string.
+            crns (str): Appropriate course CRN.
+
+        Returns:
+            dict: Dictionary mapping CRN to html output.
+        """
+        async def track(coro, bar):
+            result = await coro
+            bar.update(1)
+            return result
+
+        bar = tqdm(total=len(crns))
+        urls = [f"{self.SEAT_URL}term={term}&crn={crn}" for crn in crns]
+        async with aiohttp.ClientSession() as session:
+            tasks = [fetch(url, session=session, as_text=True) for url in urls]
+            responses = await asyncio.gather(*[track(task, bar) for task in tasks])
+            return {crn : res for crn, res in zip(crns, responses)}
+
+
+    def fetch_enrollment(self, term: str, crns: list[str]) -> dict[str, dict[str, int]]:
+        """
+        Gets enrollment data of all specified crns (they must belong to provided term).
+
+        Args:
+            term (str): GT scheduler term string.
+            crns (list[str]): List of CRN strings.
+
+        Returns:
+            dict[str, dict[str, int]]: Mapping of CRN to Enrollment Dictionary.
+        """
+        responses = asyncio.run(self._fetch_enrollment(term, crns))
+        self.logger.debug("asyncio_done", time.time())
+
+        for crn, response in responses.items():
+            enrollment_info = {
+                "Enrollment Actual": None,
+                "Enrollment Maximum": None,
+                "Enrollment Seats Available": None,
+                "Waitlist Capacity": None,
+                "Waitlist Actual": None,
+                "Waitlist Seats Available": None
+            }
+
+            for key in enrollment_info.keys():
+                pattern = rf"{key}:</span> <span\s+dir=\"ltr\">(\d+)</span>"
+                try:
+                    match = re.search(pattern, response)
+                    if match:
+                        enrollment_info[key] = int(match.group(1))
+                except:
+                    pass
+
+            responses[crn] = enrollment_info
+        return responses
+
+
+    def parse_course_data(self, data: dict, subjects: set[str], ranges: list[tuple[int, int]]) -> tuple[dict, dict]:
+        """
+        Gets relevant course data for all courses of the specified subjects offered during the given term.
+        - course format: https://github.com/gt-scheduler/crawler/blob/f7079cb50b7094d63e1f24c07fd8f237767dff2d/src/types.ts#L81
+        - section format: https://github.com/gt-scheduler/crawler/blob/f7079cb50b7094d63e1f24c07fd8f237767dff2d/src/types.ts#L119
+
+        Args:
+            data (dict): GT scheduler term data dictionary.
+            subjects (set[str]): Set of subject strings.
+            ranges (list[tuple[int, int]]): list of course number ranges to apply
+
+        Returns:
+            tuple[dict, dict]: courses-to-crn dict and crn-to-data dict
+        """
+        courses = {} # {course: [crns]}
+        parsed_data = {} # {crn : data}
+        for course in data["courses"].keys():
+            match = re.match(r"([A-Za-z]+)\s(\d+)(\D*)", course)
+            sub, num, _ = match.groups()
+            num = int(num)
+            valid_subject = len(subjects) == 0 or sub.upper() in subjects
+            valid_number = any([l <= num <= u for l, u in ranges])
+            if valid_subject and valid_number:
+                try:
+                    crns = []
+                    for sname, section in data["courses"][course][1].items():
+                        crn = section[0]
+                        crns.append(crn)
+                        
+                        primary = []
+                        additional = []
+                        for instructor in section[1][0][4]:
+                            if "(P)" in instructor:
+                                primary.append(instructor[:-4])
+                            else:
+                                additional.append(instructor)
+                        
+                        parsed_data.update({crn: {
+                            "Section": sname,
+                            "Start Time": data["periods"][section[1][0][0]][0],
+                            "End Time": data["periods"][section[1][0][0]][1],
+                            "Days": section[1][0][1],
+                            "Building": ' '.join(section[1][0][2].split()[:-1]) if section[1][0][2] != "TBA" else "",
+                            "Room": section[1][0][2].split()[-1] if section[1][0][2] != "TBA" else "",
+                            "Primary Instructor(s)": ', '.join(primary),
+                            "Additional Instructor(s)": ', '.join(additional),
+                        }})
+                    courses.update({course: crns})
+
+                except:
+                    pass
+
+        return courses, parsed_data
+
+
+    def process_course(self, term: str, course: str, crns: list[str], data: dict, enrollment: dict) -> list[dict]:
+        """
+        Aggregating parsed course data, enrollment data, and filter data.
+
+        Args:
+            term (str): GT scheduler term string.
+            course (str): Course string.
+            crns (list[str]): List of CRNs.
+            data (dict): parsed course data.
+            enrollment (dict): Enrollment mapping (crns-to-enrollment).
+
+        Returns:
+            list[dict]: list of output data rows.
+        """
+        sections = []
+        for crn in crns:    
+            sections.append({
+                "Term": self.parse_term(term),
+                "Subject": course.split(" ")[0],
+                "Course": course,
+                "CRN": crn,
+                **data[crn],
+                **enrollment[crn],
+            })
+
+        return sections
+
+
+    def process_term(self, term: str, subjects: set[str], ranges: list[tuple[int, int]], data: dict=None) -> list[dict]:
+        """
+        Compiles data for all courses in the term with the specified filters applied.
+
+        Args:
+            term (str): GT scheduler term string.
+            subjects (set[str]): Set of subject strings.
+            ranges (list[tuple[int, int]]): list of course number ranges to apply
+            data (dict, optional): Unparsed course data. Defaults to None.
+
+        Returns:
+            list[dict]: list of output data rows.
+        """
+        if data is None:
+            data = self.fetch_data(term=term)
+
+        out = []
+        self.logger.debug('parse_course_data', time.time())
+        courses, parsed_data = self.parse_course_data(data, subjects=subjects, ranges=ranges)
+        self.logger.debug(f'({len(parsed_data)})', 'fetch_enrollment', time.time())
+        enrollment = self.fetch_enrollment(term=term, crns=list(parsed_data.keys()))
+        self.logger.debug('process_course', time.time())
+        for course, crns in courses.items():
+            out.extend(self.process_course(term, course, crns, parsed_data, enrollment=enrollment))
+        self.logger.debug('done', time.time())
+
+        return out
 
 
 if __name__ == '__main__':

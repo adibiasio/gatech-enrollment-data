@@ -1,12 +1,9 @@
-# import platform
-# import subprocess
 import os, re, sys
-# import traceback
-
 import tkinter as tk
-from tkinter import filedialog, messagebox
 
+from logger import setup_logger
 from script import run
+from tkinter import filedialog, messagebox
 
 
 class App:
@@ -25,6 +22,7 @@ class App:
         self.one_file = False
 
         self.create_widgets()
+        self.logger = setup_logger(name="user-facing-app")
 
 
     def create_widgets(self):
@@ -67,23 +65,35 @@ class App:
         self.browse_button = tk.Button(self.root, text="Browse", command=self.browse_folder)
         self.browse_button.grid(row=5, column=2, padx=10, pady=5)
 
+        # Group Data
+        tk.Label(self.root, text="Group Crosslisted Courses:").grid(row=6, column=0, padx=10, pady=5, sticky="e")
+        self.group_data = tk.StringVar(value="all")
+        self.radio_frame = tk.Frame(self.root)
+        self.all_radio = tk.Radiobutton(self.radio_frame, text="Ungrouped", variable=self.group_data, value="all")
+        self.grouped_radio = tk.Radiobutton(self.radio_frame, text="Group Crosslisted", variable=self.group_data, value="grouped")
+        self.both_radio = tk.Radiobutton(self.radio_frame, text="Both", variable=self.group_data, value="both")
+        self.all_radio.pack(side="left", padx=5)
+        self.grouped_radio.pack(side="left", padx=5)
+        self.both_radio.pack(side="left", padx=5)
+        self.radio_frame.grid(row=6, column=1, pady=5, columnspan=2, sticky="w")
+
         # Skip summer terms
         self.skip_summer_var = tk.IntVar()
         self.skip_summer_checkbox = tk.Checkbutton(self.root, text="Skip Summer Terms", variable=self.skip_summer_var)
-        self.skip_summer_checkbox.grid(row=6, column=0, columnspan=3, pady=5)
+        self.skip_summer_checkbox.grid(row=7, column=0, columnspan=3, pady=5)
 
         # Export to one file
         self.one_file_var = tk.IntVar()
         self.one_file_checkbox = tk.Checkbutton(self.root, text="Export to One File", variable=self.one_file_var)
-        self.one_file_checkbox.grid(row=7, column=0, columnspan=3, pady=5)
+        self.one_file_checkbox.grid(row=8, column=0, columnspan=3, pady=5)
 
         # Submit button
         self.submit_button = tk.Button(self.root, text="Run Script", command=self.run_script)
-        self.submit_button.grid(row=8, column=0, columnspan=3, pady=10)
+        self.submit_button.grid(row=9, column=0, columnspan=3, pady=10)
 
         # Status
         self.status_label = tk.Label(self.root, text="", justify="center", padx=10)
-        self.status_label.grid(row=9, column=0, columnspan=3, pady=10)
+        self.status_label.grid(row=10, column=0, columnspan=3, pady=10)
 
 
     def browse_folder(self):
@@ -107,6 +117,7 @@ class App:
         self.subject = self.subject_entry.get()
 
         pattern = r'^(\d+)-(\d+)$'
+        self.ranges = []
         range_strs = [s.strip() for s in self.range_entry.get().split(",")]
         for range_str in range_strs:
             match = re.match(pattern, range_str)
@@ -123,6 +134,8 @@ class App:
             messagebox.showerror("Input Error", "A valid path is required.")
             return False
 
+        self.save_all = self.group_data.get() in ("all", "both")
+        self.save_grouped = self.group_data.get() in ("grouped", "both")
         return True
 
 
@@ -135,6 +148,8 @@ class App:
         cmd += " -m" if self.skip_summer == 1 else ""
         cmd += " -o" if self.one_file == 1 else ""
         cmd += f" -p {self.filepath}" if self.filepath else ""
+        cmd += " -g" if self.save_grouped else ""
+        cmd += " -a" if self.save_all else ""
         return cmd
 
 
@@ -150,34 +165,14 @@ class App:
         command = self.compile_command().split()[1:]
 
         try:
-            print(f"Running Command:\n{' '.join(command)}")
-            run(command, use_ray=False)
+            self.logger.info(f"Running Command:\n{' '.join(command)}")
+            run(command)
         except Exception as e:
             self.status_label.config(text="Oops! An Error Occurred.")
-            # NOTE: for debugging purposes
-            # with open("enrollment.log", "w") as file:
-            #     file.write(traceback.format_exc())
-            #     return
         finally:
             self.submit_button.config(state=tk.NORMAL)
 
         self.status_label.config(text="Data Saved to Path!")
-
-
-    # def exec(self, command):
-    #     # issues with running subprocess with ray and pyinstaller
-    #     try:
-    #         system = platform.system()
-    #         if system == "Windows":
-    #             subprocess.Popen(['cmd.exe', '/K', command], creationflags=subprocess.CREATE_NEW_CONSOLE)
-    #             messagebox.showinfo("Info", "Download started. Progress will be shown in an external Terminal.")
-    #         elif system == "Darwin":
-    #             subprocess.Popen(['osascript', '-e', f'tell application "Terminal" to do script "{command}"'])
-    #             messagebox.showinfo("Info", "Download started. Progress will be shown in an external Terminal.")
-    #         else:
-    #             messagebox.showinfo("Input Error", "Unsupported OS")
-    #     except subprocess.CalledProcessError as e:
-    #         print(f"Error while executing the script: {e}")
 
 
 if __name__ == "__main__":

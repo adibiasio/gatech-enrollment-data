@@ -2,7 +2,7 @@
 
 This project is dedicated towards retrieving historical data on course enrollment at the Georgia Institute of Technology.
 
-This program processes input based on the specified flags and generates an output CSV file with the corresponding enrollment data. It allows users to customize the number of terms, filter by a subject, and provide a file path for saving the output. Check out a sample output csv file [here](data/(sample%20output)%20fall_2025_enrollment_data_2025-04-20-1815.csv).
+This program processes input based on the specified flags and generates an output CSV file with the corresponding enrollment data. It allows users to customize the number of terms, filter by a subject, and provide a file path for saving the output. Check out a sample output csv file [here](data/(sample%20output)%20fall_2025_enrollment_data_2025-04-30-1739.csv).
 
 ## Installation
 Step 0: Ensure you have python installed on your system. This project uses version 3.11. If you do not have python installed, you can install it [here](https://www.python.org/downloads/release/python-3110/) for your appropriate operating system. Make sure to select ADD TO PATH during the installation process.
@@ -19,6 +19,7 @@ python -m venv .venv
 source .venv/bin/activate          # unix and macOS
 .venv\Scripts\activate             # windows
 ```
+
 
 Step 3: Install required dependencies.
 ```
@@ -40,7 +41,7 @@ python src/app.py
 ```
 
 <div align="center">
-  <img src="https://github.com/user-attachments/assets/cec52eda-2c27-46f4-9743-59a84e77182a" alt="Centered Image">
+  <img src="https://github.com/user-attachments/assets/405d2985-f60f-4ccf-97d2-baee3b8afb3d" alt="Centered Image">
 </div>
 
 ## Script Usage
@@ -48,20 +49,23 @@ python src/app.py
 You can also run the program from the command line using the following syntax:
 
 ```bash
-python src/script.py [-t <num_terms>] [-s <subject 1> ... <subject n>] [-r <lower>-<upper> ... <lower>-<upper>] [-p <filepath>] [-m] [-o]
+python src/script.py [-t <num_terms>] [-s <subject 1> ... <subject n>] [-r <lower>-<upper> ... <lower>-<upper>] [-p <filepath>] [-m] [-o] [-a] [-g]
 ```
 
 ### Flags
 
-| Flag          | Description                                       | Default Value              |
-|---------------|---------------------------------------------------|----------------------------|
-| `-t <int>`    | Specifies the number of terms to process.         | `1`                        |
-| `-s <string> ... <string>` | Specifies the subjects of the output.| None (all returned)      |
-| `-r <int>-<int> ... <int>-<int>`    | Specifies course number bounds (inclusive).  | `0-inf`                        |
-| `-p <string>` | Specifies the file path for saving the CSV.       | `""` (current directory)   |
-| `-m`          | If included, skips all summer terms.              | summer terms included      |
-| `-o`          | If included, outputs all terms to one file.       | one file per term      |
+| Flag          | Description                                                               | Default Value                  |
+|---------------|---------------------------------------------------                        |----------------------------    |
+| `-t <int>`    | Specifies the number of terms to process.                                 | `1`                            |
+| `-s <string> ... <string>` | Specifies the subjects of the output.                        | None (all returned)            |
+| `-r <int>-<int> ... <int>-<int>` | Specifies course number bounds (inclusive).            | `0-inf`                        |
+| `-p <string>` | Specifies the file path for saving the CSV.                               | `""` (current directory)       |
+| `-m`          | If included, skips all summer terms.                                      | summer terms included          |
+| `-o`          | If included, outputs all terms to one file.                               | one file per term              |
+| `-g`*          | If included, groups crosslisted courses sharing rooms.                   | does not group                 |
+| `-a`*          | If -g is used, include to also output all course data as shown in oscar. | all courses (as seen in oscar) |
 
+*if both flags -g and -a are included, two output files will be generated, one with the grouping and one without.
 
 ### Sample Run
 ```
