@@ -1,16 +1,32 @@
 import sys
-# import faiss
 import regex
 import pdfplumber
 
-# import numpy as np
 import pandas as pd
 
+from logger import setup_logger
 from utils import DataPath, save_df
-# from sentence_transformers import SentenceTransformer
 
 
-def pdf_reader(path, out):
+logger = setup_logger(name="room-capacity-parser")
+
+
+def pdf_reader(path: str, out: str):
+    """
+    Parses room capacity data from pdf published annually by Georgia Tech.
+
+    Also, need to ensure that the gt-scheduler-buildings mapping of gt-scheduler building names to
+    gatech building code numbers is up to date. The building names used by GT scheduler can be found
+    at the link below, and the building code numbers can be found in the room capacity pdf published
+    by Georgia Tech.
+
+    GT Scheduler Building Names: 
+    https://github.com/gt-scheduler/crawler/blob/f7079cb50b7094d63e1f24c07fd8f237767dff2d/src/steps/parse.ts#L48
+
+    Args:
+        path (str): Path to input room capacity pdf.
+        out (str): Path for capacity csv to be saved.
+    """
     building_data = []
     room_data = []
 
@@ -42,24 +58,21 @@ def pdf_reader(path, out):
                         bldg_code, room, capacity = room_match.groups()
                         room_data.append([bldg_code, room, capacity])
 
-    building_df = pd.DataFrame(building_data, columns=["Building Name", "Building Code"])
-    room_df = pd.DataFrame(room_data, columns=["Building Code", "Room", "Room Capacity"])
-
     # TODO: Map gt scheduler building names to building codes using faiss
-    # ...
-    
-    # gt_scheduler_names = pd.read_csv(DataPath("gt-scheduler-buildings.csv"))
-    # df_out = pd.merge(room_df, gt_scheduler_names, on="Building Code")
-    # write to aliases.csv
-
+    room_df = pd.DataFrame(room_data, columns=["Building Code", "Room", "Room Capacity"])
     save_df(room_df, out)
 
 
-def name_matching():
-    pass
+def parse_args(args: list[str]) -> tuple[any]:
+    """
+    Parses list of command line arguments.
 
+    Args:
+        args (list[str]): arguments from sys.argv
 
-def parse_args(args):
+    Returns:
+        tuple[any]: Parsed arguments with correct types.
+    """
     # default args
     pdf_path = DataPath("classrooms-data-2025.pdf")
     out_path = DataPath("capacities.csv")
@@ -73,7 +86,7 @@ def parse_args(args):
             out_path = args[i + 1]
             i += 2
         else:
-            print(f"Unknown or incomplete argument: {args[i]}")
+            logger.error(f"Unknown or incomplete argument: {args[i]}")
             sys.exit(1)
 
     return pdf_path, out_path
@@ -81,7 +94,7 @@ def parse_args(args):
 
 if __name__ == "__main__":
     if len(sys.argv) < 1:
-        print("Usage: python rooms.py [-p <pdf_path>] [-o <save_path>]")
+        logger.critical("Usage: python rooms.py [-p <pdf_path>] [-o <save_path>]")
         sys.exit(1)
 
     pdf_path, out_path = parse_args(sys.argv)

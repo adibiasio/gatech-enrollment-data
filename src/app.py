@@ -1,12 +1,9 @@
-# import platform
-# import subprocess
 import os, re, sys
-# import traceback
-
 import tkinter as tk
-from tkinter import filedialog, messagebox
 
+from logger import setup_logger
 from script import run
+from tkinter import filedialog, messagebox
 
 
 class App:
@@ -25,6 +22,7 @@ class App:
         self.one_file = False
 
         self.create_widgets()
+        self.logger = setup_logger(name="user-facing-app")
 
 
     def create_widgets(self):
@@ -167,34 +165,14 @@ class App:
         command = self.compile_command().split()[1:]
 
         try:
-            print(f"Running Command:\n{' '.join(command)}")
-            run(command, use_ray=False)
+            self.logger.info(f"Running Command:\n{' '.join(command)}")
+            run(command)
         except Exception as e:
             self.status_label.config(text="Oops! An Error Occurred.")
-            # NOTE: for debugging purposes
-            # with open("enrollment.log", "w") as file:
-            #     file.write(traceback.format_exc())
-            #     return
         finally:
             self.submit_button.config(state=tk.NORMAL)
 
         self.status_label.config(text="Data Saved to Path!")
-
-
-    # def exec(self, command):
-    #     # issues with running subprocess with ray and pyinstaller
-    #     try:
-    #         system = platform.system()
-    #         if system == "Windows":
-    #             subprocess.Popen(['cmd.exe', '/K', command], creationflags=subprocess.CREATE_NEW_CONSOLE)
-    #             messagebox.showinfo("Info", "Download started. Progress will be shown in an external Terminal.")
-    #         elif system == "Darwin":
-    #             subprocess.Popen(['osascript', '-e', f'tell application "Terminal" to do script "{command}"'])
-    #             messagebox.showinfo("Info", "Download started. Progress will be shown in an external Terminal.")
-    #         else:
-    #             messagebox.showinfo("Input Error", "Unsupported OS")
-    #     except subprocess.CalledProcessError as e:
-    #         print(f"Error while executing the script: {e}")
 
 
 if __name__ == "__main__":
