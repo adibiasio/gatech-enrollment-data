@@ -1,5 +1,4 @@
 aiohttp==3.11.18
-aiohttp==3.11.9
 pandas==2.2.3
 pdfplumber==0.11.5
 regex==2024.11.6
